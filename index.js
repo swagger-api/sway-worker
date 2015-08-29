@@ -18486,9 +18486,14 @@ var reduce = require('reduce');
  * Root reference for iframes.
  */
 
-var root = 'undefined' == typeof window
-  ? (this || self)
-  : window;
+var root;
+if (typeof window !== 'undefined') { // Browser window
+  root = window;
+} else if (typeof self !== 'undefined') { // Web Worker
+  root = self;
+} else { // Other environments
+  root = this;
+}
 
 /**
  * Noop.
