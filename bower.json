@@ -1,6 +1,5 @@
 {
   "name": "sway-worker",
-  "main": "index.js",
   "version": "1.0.0",
   "authors": [
     "Mohsen Azimi <me@azimi.me>"

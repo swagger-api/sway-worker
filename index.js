@@ -31,8 +31,10 @@ onmessage = function(message) {
   SwaggerApi.create({definition: message.data}).then(function (api) {
 
     if (!api.validate()) {
+      // var errors = api.getLastErrors();
+
       postMessage({
-        specs: api,
+        specs: api.definition,
         errors: api.getLastErrors(),
         warnings: api.getLastWarnings()
       });
@@ -40,7 +42,7 @@ onmessage = function(message) {
 
     postMessage({
       errors: [],
-      specs: api,
+      specs: api.definition,
       warnings: api.getLastWarnings()
     });
   })
