@@ -51920,6 +51920,10 @@ module.exports={
 
 
 // Worker code from here
+/*
+ Note: superagent was monkey patched in above code. Please see here:
+ https://github.com/visionmedia/superagent/pull/673
+*/
 onmessage = function(message) {
 
   SwaggerApi.create({definition: message.data}).then(function (api) {
@@ -51929,7 +51933,7 @@ onmessage = function(message) {
 
       postMessage({
         specs: api.definition,
-        errors: api.getLastErrors(),
+        errors: sanitizeErrors(api.getLastErrors()),
         warnings: api.getLastWarnings()
       });
     }
@@ -51945,7 +51949,28 @@ onmessage = function(message) {
     postMessage({
       specs: message.data,
       warnings: [],
-      errors: [JSON.stringify(err)]
+      errors: [{
+        message: err.message,
+        code: 'ERROR_THROWN_BY_SWAY_CODE:' + err.code
+      }]
     });
   });
 };
+
+// Error object can not get serialized using the structured cloning algorithm,
+// therefore we're removing them and appending the error message to our main
+// error object.
+function sanitizeErrors(errors) {
+  if (!errors || !errors.length) {
+    return [];
+  }
+
+  return errors.map(function(error){
+    if (error.err instanceof Error) {
+      error.message = error.err.message;
+      delete error.err;
+    }
+
+    return error;
+  });
+}
