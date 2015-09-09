@@ -51935,7 +51935,7 @@ onmessage = function(message) {
       // var errors = api.getLastErrors();
 
       postMessage({
-        specs: api.definition,
+        specs: api.resolved || api.definition,
         errors: sanitizeErrors(api.getLastErrors()),
         warnings: api.getLastWarnings()
       });
@@ -51943,7 +51943,7 @@ onmessage = function(message) {
 
     postMessage({
       errors: [],
-      specs: api.definition,
+      specs: api.resolved,
       warnings: api.getLastWarnings()
     });
   })
