@@ -141,7 +141,7 @@ module.exports.create = function (options, callback) {
   return allTasks;
 };
 
-},{"./lib/versions/2.0/":8,"js-yaml":27,"lodash":202,"native-promise-only":203,"path-loader":204}],2:[function(require,module,exports){
+},{"./lib/versions/2.0/":8,"js-yaml":27,"lodash":196,"native-promise-only":197,"path-loader":198}],2:[function(require,module,exports){
 /*
  * The MIT License (MIT)
  *
@@ -271,7 +271,7 @@ module.exports.validateAgainstSchema = function (validator, schema, value) {
   return response;
 };
 
-},{"./json-schema-draft-04.json":3,"json-schema-faker":67,"lodash":202,"z-schema":222}],3:[function(require,module,exports){
+},{"./json-schema-draft-04.json":3,"json-schema-faker":61,"lodash":196,"z-schema":216}],3:[function(require,module,exports){
 module.exports={
     "id": "http://json-schema.org/draft-04/schema#",
     "$schema": "http://json-schema.org/draft-04/schema#",
@@ -616,7 +616,7 @@ function Operation (api, pathObject, method, ptr, definition) {
   // Bring in the security definitions for easier access
   this.securityDefinitions = _.reduce(definition.security, function (defs, reqs) {
     _.each(reqs, function (req, name) {
-      var def = api.resolved.securityDefinitions[name];
+      var def = api.resolved.securityDefinitions ? api.resolved.securityDefinitions[name] : undefined;
 
       if (!_.isUndefined(def)) {
         defs[name] = def;
@@ -1357,7 +1357,7 @@ module.exports = {
   SwaggerApi: SwaggerApi
 };
 
-},{"./helpers":2,"debug":23,"js-yaml":27,"json-refs":58,"lodash":202,"url":22}],5:[function(require,module,exports){
+},{"./helpers":2,"debug":23,"js-yaml":27,"json-refs":58,"lodash":196,"url":22}],5:[function(require,module,exports){
 /*
  * The MIT License (MIT)
  *
@@ -1412,7 +1412,7 @@ module.exports.password = function (gen, schema) {
   return stringMocker(filterSchema(schema));
 };
 
-},{"js-base64":26,"json-schema-faker/lib/types/string":74,"lodash":202}],6:[function(require,module,exports){
+},{"js-base64":26,"json-schema-faker/lib/types/string":68,"lodash":196}],6:[function(require,module,exports){
 /*
  * The MIT License (MIT)
  *
@@ -1458,7 +1458,7 @@ module.exports.double = returnTrue;
 module.exports.float = returnTrue;
 module.exports.password = returnTrue;
 
-},{"lodash":202}],7:[function(require,module,exports){
+},{"lodash":196}],7:[function(require,module,exports){
 /*
  * The MIT License (MIT)
  *
@@ -1529,7 +1529,7 @@ module.exports.getParameterSchema = function (parameter) {
 
 module.exports.supportedHttpMethods = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch'];
 
-},{"lodash":202}],8:[function(require,module,exports){
+},{"lodash":196}],8:[function(require,module,exports){
 /*
  * The MIT License (MIT)
  *
@@ -1792,7 +1792,7 @@ module.exports.getSemanticValidators = function () {
   return validators.semanticValidators;
 };
 
-},{"../../helpers":2,"../../types":4,"./format-generators":5,"./helpers":7,"./validators":10,"js-yaml":27,"json-refs":58,"lodash":202,"path":16,"path-to-regexp":210}],9:[function(require,module,exports){
+},{"../../helpers":2,"../../types":4,"./format-generators":5,"./helpers":7,"./validators":10,"js-yaml":27,"json-refs":58,"lodash":196,"path":16,"path-to-regexp":204}],9:[function(require,module,exports){
 module.exports={
   "title": "A JSON Schema for Swagger 2.0 API.",
   "id": "http://swagger.io/v2/schema.json#",
@@ -3964,7 +3964,7 @@ module.exports = {
   ]
 };
 
-},{"../../helpers":2,"./format-validators":6,"./helpers":7,"./schema.json":9,"json-refs":58,"lodash":202}],11:[function(require,module,exports){
+},{"../../helpers":2,"./format-validators":6,"./helpers":7,"./schema.json":9,"json-refs":58,"lodash":196}],11:[function(require,module,exports){
 
 },{}],12:[function(require,module,exports){
 /*!
@@ -17504,12 +17504,17 @@ function getRemoteJson (url, options) {
       allTasks = allTasks.then(JSON.parse);
     }
 
-    allTasks.then(function (nJson) {
+    allTasks = allTasks.then(function (nJson) {
       remoteCache[url] = nJson;
 
       return nJson;
     });
   }
+
+  // Return a cloned version to avoid updating the cache
+  allTasks = allTasks.then(function (nJson) {
+    return _.cloneDeep(nJson);
+  });
 
   return allTasks;
 }
@@ -17820,12 +17825,14 @@ function realResolveRefs (json, options, metadata) {
     _.each(metadata, function (refMetadata) {
       var normalizedPtr = refMetadata.ref;
 
-      // Remove the base
-      normalizedPtr = normalizedPtr.replace(options.location, '');
+      // Remove the base when applicable
+      if (normalizedPtr.indexOf(options.location) === 0) {
+        normalizedPtr = normalizedPtr.substring(options.location.length);
 
-      // Remove the / prefix
-      if (normalizedPtr.charAt(0) === '/') {
-        normalizedPtr = normalizedPtr.substring(1);
+        // Remove the / prefix
+        if (normalizedPtr.charAt(0) === '/') {
+          normalizedPtr = normalizedPtr.substring(1);
+        }
       }
 
       refMetadata.ref = normalizedPtr;
@@ -17859,12 +17866,16 @@ function resolveRemoteRefs (json, options, parentPtr, parents, metadata) {
       // Get the remote value
       value = traverse(resolved).get(pathFromPointer(remotePtr));
 
-      // If the remote value is itself a reference, update the reference to be replaced with its reference value.
-      // Otherwise, replace the remote reference.
-      if (value.$ref) {
-        value = value.$ref;
+      if (_.isUndefined(value)) {
+        refMetadata.missing = true;
       } else {
-        refPath.pop();
+        // If the remote value is itself a reference, update the reference to be replaced with its reference value.
+        // Otherwise, replace the remote reference.
+        if (value.$ref) {
+          value = value.$ref;
+        } else {
+          refPath.pop();
+        }
       }
     }
 
@@ -17930,6 +17941,8 @@ function resolveRemoteRefs (json, options, parentPtr, parents, metadata) {
                     delete parents[remoteLocation];
 
                     replaceRemoteRef(refPtr, ptr, remoteLocation, hash, rMetadata.resolved);
+
+                    return rMetadata;
                   });
               }
             });
@@ -17941,7 +17954,11 @@ function resolveRemoteRefs (json, options, parentPtr, parents, metadata) {
     }
   });
 
-  allTasks = allTasks.then(resolver, resolver);
+  allTasks = allTasks
+    .then(function () {
+      realResolveRefs(jsonT.value, options, metadata);
+    })
+    .then(resolver, resolver);
 
   return allTasks;
 }
@@ -18084,7 +18101,7 @@ module.exports.resolveRefs = function resolveRefs (json, options, done) {
   return allTasks;
 };
 
-},{"./lib/utils":59,"native-promise-only":203,"path-loader":60,"traverse":66}],59:[function(require,module,exports){
+},{"./lib/utils":59,"native-promise-only":197,"path-loader":198,"traverse":60}],59:[function(require,module,exports){
 /*
  * The MIT License (MIT)
  *
@@ -18165,1637 +18182,7 @@ module.exports.each = function (source, handler) {
   }
 };
 
-},{"traverse":66}],60:[function(require,module,exports){
-/*
- * The MIT License (MIT)
- *
- * Copyright (c) 2015 Jeremy Whitlock
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
-
-'use strict';
-
-var supportedLoaders = {
-  file: require('./lib/loaders/file'),
-  http: require('./lib/loaders/http'),
-  https: require('./lib/loaders/http')
-};
-var defaultLoader = typeof window === 'undefined' ? supportedLoaders.file : supportedLoaders.http;
-
-// Load promises polyfill if necessary
-if (typeof Promise === 'undefined') {
-  require('native-promise-only');
-}
-
-/**
- * Error-first callback.
- *
- * @param {error} [err] - The error if there is a problem
- * @param {string} [result] - The result of the function
- *
- * @callback resultCallback
- */
-
-/**
- * Callback used to provide access to altering a remote request prior to the request being made.
- *
- * @param {object} req - The Superagent request object
- * @param {string} location - The location being retrieved
- *
- * @callback prepareRequestCallback
- */
-
-/**
- * Returns the loader for the given location.
- *
- * @param {string} location - The location to load
- *
- * @returns {object} The loader to use
- */
-function getLoader (location) {
-  return supportedLoaders[location.split(':')[0]] || defaultLoader;
-}
-
-/**
- * Loads a document at the provided location and returns a JavaScript object representation.
- *
- * @param {object} location - The location to the document
- * @param {object} [options] - The options
- * @param {resultCallback} done - The result callback
- *
- * @returns {Promise} Always returns a promise even if there is a callback provided
- *
- * @example
- * // Example using callbacks
- *
- * PathLoader
- *   .load('./package.json', function (err, document) {
- *     if (err) {
- *       console.error(err.stack);
- *     } else {
- *       try {
- *         document = JSON.parse(document)
- *         console.log(document.name + ' (' + document.version + '): ' + document.description);
- *       } catch (err2) {
- *         callback(err2);
- *       }
- *     });
- *
- * @example
- * // Example using Promises
- *
- * PathLoader
- *   .load('./package.json')
- *   .then(JSON.parse)
- *   .then(function (document) {
- *     console.log(document.name + ' (' + document.version + '): ' + document.description);
- *   }, function (err) {
- *     console.error(err.stack);
- *   });
- *
- * @example
- * // Example using options.prepareRequest to provide authentication details for a remotely secure URL
- *
- * PathLoader
- *   .load('https://api.github.com/repos/whitlockjc/path-loader', {
- *     prepareRequest: function (req) {
- *       req.auth('my-username', 'my-password')
- *     }
- *   })
- *   .then(JSON.parse)
- *   .then(function (document) {
- *     console.log(document.full_name + ': ' + document.description);
- *   }, function (err) {
- *     console.error(err.stack);
- *   });
- *
- * @example
- * // Example using options.processContent to load a YAML file
- *
- * PathLoader
- *   .load('/Users/not-you/projects/path-loader/.travis.yml')
- *   .then(YAML.safeLoad)
- *   .then(function (document) {
- *     console.log('path-loader uses the', document.language, 'language.');
- *   }, function (err) {
- *     console.error(err.stack);
- *   });
- */
-module.exports.load = function (location, options, done) {
-  var allTasks = Promise.resolve();
-
-  if (arguments.length === 2 && typeof options === 'function') {
-    done = options;
-    options = undefined;
-  }
-
-  // Validate arguments
-  allTasks = allTasks.then(function () {
-    if (typeof location === 'undefined') {
-      throw new TypeError('location is required');
-    } else if (typeof location !== 'string') {
-      throw new TypeError('location must be a string');
-    }
-
-    if (typeof options !== 'undefined') {
-      if (typeof options !== 'object') {
-        throw new TypeError('options must be an object');
-      }
-    } else {
-      options = {};
-    }
-
-    if (typeof done !== 'undefined' && typeof done !== 'function') {
-      throw new TypeError('callback must be a function');
-    }
-  });
-
-  // Load the document from the provided location and process it
-  allTasks = allTasks.then(function () {
-    return new Promise(function (resolve, reject) {
-      var loader = getLoader(location);
-
-      loader.load(location, options, function (err, document) {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(document);
-        }
-      });
-    });
-  });
-
-  // Use the callback if provided and it is a function
-  if (typeof done === 'function') {
-    allTasks = allTasks
-      .then(function (document) {
-        done(undefined, document);
-      }, function (err) {
-        done(err);
-      });
-  }
-
-  return allTasks;
-};
-
-},{"./lib/loaders/file":61,"./lib/loaders/http":62,"native-promise-only":203}],61:[function(require,module,exports){
-/*
- * The MIT License (MIT)
- *
- * Copyright (c) 2015 Jeremy Whitlock
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
-
-'use strict';
-
-/**
- * Loads a file from the filesystem.
- *
- * @param {string} location - The filesystem location (If relative, location is relative to process.cwd()).
- * @param {object} options - The loader options (Unused)
- * @param {function} callback - The error-first callback
- */
-module.exports.load = function (location, options, callback) {
-  callback(new TypeError('The \'file\' scheme is not supported in the browser'));
-};
-
-},{}],62:[function(require,module,exports){
-/*eslint-env node, browser */
-
-/*
- * The MIT License (MIT)
- *
- * Copyright (c) 2015 Jeremy Whitlock
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
-
-'use strict';
-
-var request = require('superagent');
-
-var supportedHttpMethods = ['delete', 'get', 'head', 'patch', 'post', 'put'];
-
-/**
- * Loads a file from an http or https URL.
- *
- * @param {string} location - The document URL (If relative, location is relative to window.location).
- * @param {object} options - The loader options
- * @param {string} [options.method=get] - The HTTP method to use for the request
- * @param {prepareRequestCallback} [options.prepareRequest] - The callback used to prepare a request
- * @param {function} callback - The error-first callback
- */
-module.exports.load = function (location, options, callback) {
-  var realUrl = location.split('#')[0];
-  var realMethod = options.method ? options.method.toLowerCase() : 'get';
-  var err;
-  var realRequest;
-
-  if (typeof options.prepareRequest !== 'undefined' && typeof options.prepareRequest !== 'function') {
-    err = new TypeError('options.prepareRequest must be a function');
-  } else if (typeof options.method !== 'undefined') {
-    if (typeof options.method !== 'string') {
-      err = new TypeError('options.method must be a string');
-    } else if (supportedHttpMethods.indexOf(options.method) === -1) {
-      err = new TypeError('options.method must be one of the following: ' +
-        supportedHttpMethods.slice(0, supportedHttpMethods.length - 1).join(', ') + ' or ' +
-        supportedHttpMethods[supportedHttpMethods.length - 1]);
-    }
-  }
-
-  if (!err) {
-    realRequest = request[realMethod === 'delete' ? 'del' : realMethod](realUrl);
-
-    if (options.prepareRequest) {
-      options.prepareRequest(realRequest);
-    }
-
-    // buffer() is only available in Node.js
-    if (typeof realRequest.buffer === 'function') {
-      realRequest.buffer(true);
-    }
-
-    realRequest
-      .end(function (err2, res) {
-        callback(err2, res ? res.text : res);
-      });
-  } else {
-    callback(err);
-  }
-};
-
-},{"superagent":63}],63:[function(require,module,exports){
-/**
- * Module dependencies.
- */
-
-var Emitter = require('emitter');
-var reduce = require('reduce');
-
-/**
- * Root reference for iframes.
- */
-
-var root;
-if (typeof window !== 'undefined') { // Browser window
-  root = window;
-} else if (typeof self !== 'undefined') { // Web Worker
-  root = self;
-} else { // Other environments
-  root = this;
-}
-
-/**
- * Noop.
- */
-
-function noop(){};
-
-/**
- * Check if `obj` is a host object,
- * we don't want to serialize these :)
- *
- * TODO: future proof, move to compoent land
- *
- * @param {Object} obj
- * @return {Boolean}
- * @api private
- */
-
-function isHost(obj) {
-  var str = {}.toString.call(obj);
-
-  switch (str) {
-    case '[object File]':
-    case '[object Blob]':
-    case '[object FormData]':
-      return true;
-    default:
-      return false;
-  }
-}
-
-/**
- * Determine XHR.
- */
-
-request.getXHR = function () {
-  if (root.XMLHttpRequest
-      && (!root.location || 'file:' != root.location.protocol
-          || !root.ActiveXObject)) {
-    return new XMLHttpRequest;
-  } else {
-    try { return new ActiveXObject('Microsoft.XMLHTTP'); } catch(e) {}
-    try { return new ActiveXObject('Msxml2.XMLHTTP.6.0'); } catch(e) {}
-    try { return new ActiveXObject('Msxml2.XMLHTTP.3.0'); } catch(e) {}
-    try { return new ActiveXObject('Msxml2.XMLHTTP'); } catch(e) {}
-  }
-  return false;
-};
-
-/**
- * Removes leading and trailing whitespace, added to support IE.
- *
- * @param {String} s
- * @return {String}
- * @api private
- */
-
-var trim = ''.trim
-  ? function(s) { return s.trim(); }
-  : function(s) { return s.replace(/(^\s*|\s*$)/g, ''); };
-
-/**
- * Check if `obj` is an object.
- *
- * @param {Object} obj
- * @return {Boolean}
- * @api private
- */
-
-function isObject(obj) {
-  return obj === Object(obj);
-}
-
-/**
- * Serialize the given `obj`.
- *
- * @param {Object} obj
- * @return {String}
- * @api private
- */
-
-function serialize(obj) {
-  if (!isObject(obj)) return obj;
-  var pairs = [];
-  for (var key in obj) {
-    if (null != obj[key]) {
-      pairs.push(encodeURIComponent(key)
-        + '=' + encodeURIComponent(obj[key]));
-    }
-  }
-  return pairs.join('&');
-}
-
-/**
- * Expose serialization method.
- */
-
- request.serializeObject = serialize;
-
- /**
-  * Parse the given x-www-form-urlencoded `str`.
-  *
-  * @param {String} str
-  * @return {Object}
-  * @api private
-  */
-
-function parseString(str) {
-  var obj = {};
-  var pairs = str.split('&');
-  var parts;
-  var pair;
-
-  for (var i = 0, len = pairs.length; i < len; ++i) {
-    pair = pairs[i];
-    parts = pair.split('=');
-    obj[decodeURIComponent(parts[0])] = decodeURIComponent(parts[1]);
-  }
-
-  return obj;
-}
-
-/**
- * Expose parser.
- */
-
-request.parseString = parseString;
-
-/**
- * Default MIME type map.
- *
- *     superagent.types.xml = 'application/xml';
- *
- */
-
-request.types = {
-  html: 'text/html',
-  json: 'application/json',
-  xml: 'application/xml',
-  urlencoded: 'application/x-www-form-urlencoded',
-  'form': 'application/x-www-form-urlencoded',
-  'form-data': 'application/x-www-form-urlencoded'
-};
-
-/**
- * Default serialization map.
- *
- *     superagent.serialize['application/xml'] = function(obj){
- *       return 'generated xml here';
- *     };
- *
- */
-
- request.serialize = {
-   'application/x-www-form-urlencoded': serialize,
-   'application/json': JSON.stringify
- };
-
- /**
-  * Default parsers.
-  *
-  *     superagent.parse['application/xml'] = function(str){
-  *       return { object parsed from str };
-  *     };
-  *
-  */
-
-request.parse = {
-  'application/x-www-form-urlencoded': parseString,
-  'application/json': JSON.parse
-};
-
-/**
- * Parse the given header `str` into
- * an object containing the mapped fields.
- *
- * @param {String} str
- * @return {Object}
- * @api private
- */
-
-function parseHeader(str) {
-  var lines = str.split(/\r?\n/);
-  var fields = {};
-  var index;
-  var line;
-  var field;
-  var val;
-
-  lines.pop(); // trailing CRLF
-
-  for (var i = 0, len = lines.length; i < len; ++i) {
-    line = lines[i];
-    index = line.indexOf(':');
-    field = line.slice(0, index).toLowerCase();
-    val = trim(line.slice(index + 1));
-    fields[field] = val;
-  }
-
-  return fields;
-}
-
-/**
- * Return the mime type for the given `str`.
- *
- * @param {String} str
- * @return {String}
- * @api private
- */
-
-function type(str){
-  return str.split(/ *; */).shift();
-};
-
-/**
- * Return header field parameters.
- *
- * @param {String} str
- * @return {Object}
- * @api private
- */
-
-function params(str){
-  return reduce(str.split(/ *; */), function(obj, str){
-    var parts = str.split(/ *= */)
-      , key = parts.shift()
-      , val = parts.shift();
-
-    if (key && val) obj[key] = val;
-    return obj;
-  }, {});
-};
-
-/**
- * Initialize a new `Response` with the given `xhr`.
- *
- *  - set flags (.ok, .error, etc)
- *  - parse header
- *
- * Examples:
- *
- *  Aliasing `superagent` as `request` is nice:
- *
- *      request = superagent;
- *
- *  We can use the promise-like API, or pass callbacks:
- *
- *      request.get('/').end(function(res){});
- *      request.get('/', function(res){});
- *
- *  Sending data can be chained:
- *
- *      request
- *        .post('/user')
- *        .send({ name: 'tj' })
- *        .end(function(res){});
- *
- *  Or passed to `.send()`:
- *
- *      request
- *        .post('/user')
- *        .send({ name: 'tj' }, function(res){});
- *
- *  Or passed to `.post()`:
- *
- *      request
- *        .post('/user', { name: 'tj' })
- *        .end(function(res){});
- *
- * Or further reduced to a single call for simple cases:
- *
- *      request
- *        .post('/user', { name: 'tj' }, function(res){});
- *
- * @param {XMLHTTPRequest} xhr
- * @param {Object} options
- * @api private
- */
-
-function Response(req, options) {
-  options = options || {};
-  this.req = req;
-  this.xhr = this.req.xhr;
-  // responseText is accessible only if responseType is '' or 'text' and on older browsers
-  this.text = ((this.req.method !='HEAD' && (this.xhr.responseType === '' || this.xhr.responseType === 'text')) || typeof this.xhr.responseType === 'undefined')
-     ? this.xhr.responseText
-     : null;
-  this.statusText = this.req.xhr.statusText;
-  this.setStatusProperties(this.xhr.status);
-  this.header = this.headers = parseHeader(this.xhr.getAllResponseHeaders());
-  // getAllResponseHeaders sometimes falsely returns "" for CORS requests, but
-  // getResponseHeader still works. so we get content-type even if getting
-  // other headers fails.
-  this.header['content-type'] = this.xhr.getResponseHeader('content-type');
-  this.setHeaderProperties(this.header);
-  this.body = this.req.method != 'HEAD'
-    ? this.parseBody(this.text ? this.text : this.xhr.response)
-    : null;
-}
-
-/**
- * Get case-insensitive `field` value.
- *
- * @param {String} field
- * @return {String}
- * @api public
- */
-
-Response.prototype.get = function(field){
-  return this.header[field.toLowerCase()];
-};
-
-/**
- * Set header related properties:
- *
- *   - `.type` the content type without params
- *
- * A response of "Content-Type: text/plain; charset=utf-8"
- * will provide you with a `.type` of "text/plain".
- *
- * @param {Object} header
- * @api private
- */
-
-Response.prototype.setHeaderProperties = function(header){
-  // content-type
-  var ct = this.header['content-type'] || '';
-  this.type = type(ct);
-
-  // params
-  var obj = params(ct);
-  for (var key in obj) this[key] = obj[key];
-};
-
-/**
- * Parse the given body `str`.
- *
- * Used for auto-parsing of bodies. Parsers
- * are defined on the `superagent.parse` object.
- *
- * @param {String} str
- * @return {Mixed}
- * @api private
- */
-
-Response.prototype.parseBody = function(str){
-  var parse = request.parse[this.type];
-  return parse && str && (str.length || str instanceof Object)
-    ? parse(str)
-    : null;
-};
-
-/**
- * Set flags such as `.ok` based on `status`.
- *
- * For example a 2xx response will give you a `.ok` of __true__
- * whereas 5xx will be __false__ and `.error` will be __true__. The
- * `.clientError` and `.serverError` are also available to be more
- * specific, and `.statusType` is the class of error ranging from 1..5
- * sometimes useful for mapping respond colors etc.
- *
- * "sugar" properties are also defined for common cases. Currently providing:
- *
- *   - .noContent
- *   - .badRequest
- *   - .unauthorized
- *   - .notAcceptable
- *   - .notFound
- *
- * @param {Number} status
- * @api private
- */
-
-Response.prototype.setStatusProperties = function(status){
-  // handle IE9 bug: http://stackoverflow.com/questions/10046972/msie-returns-status-code-of-1223-for-ajax-request
-  if (status === 1223) {
-    status = 204;
-  }
-
-  var type = status / 100 | 0;
-
-  // status / class
-  this.status = status;
-  this.statusType = type;
-
-  // basics
-  this.info = 1 == type;
-  this.ok = 2 == type;
-  this.clientError = 4 == type;
-  this.serverError = 5 == type;
-  this.error = (4 == type || 5 == type)
-    ? this.toError()
-    : false;
-
-  // sugar
-  this.accepted = 202 == status;
-  this.noContent = 204 == status;
-  this.badRequest = 400 == status;
-  this.unauthorized = 401 == status;
-  this.notAcceptable = 406 == status;
-  this.notFound = 404 == status;
-  this.forbidden = 403 == status;
-};
-
-/**
- * Return an `Error` representative of this response.
- *
- * @return {Error}
- * @api public
- */
-
-Response.prototype.toError = function(){
-  var req = this.req;
-  var method = req.method;
-  var url = req.url;
-
-  var msg = 'cannot ' + method + ' ' + url + ' (' + this.status + ')';
-  var err = new Error(msg);
-  err.status = this.status;
-  err.method = method;
-  err.url = url;
-
-  return err;
-};
-
-/**
- * Expose `Response`.
- */
-
-request.Response = Response;
-
-/**
- * Initialize a new `Request` with the given `method` and `url`.
- *
- * @param {String} method
- * @param {String} url
- * @api public
- */
-
-function Request(method, url) {
-  var self = this;
-  Emitter.call(this);
-  this._query = this._query || [];
-  this.method = method;
-  this.url = url;
-  this.header = {};
-  this._header = {};
-  this.on('end', function(){
-    var err = null;
-    var res = null;
-
-    try {
-      res = new Response(self);
-    } catch(e) {
-      err = new Error('Parser is unable to parse the response');
-      err.parse = true;
-      err.original = e;
-      return self.callback(err);
-    }
-
-    self.emit('response', res);
-
-    if (err) {
-      return self.callback(err, res);
-    }
-
-    if (res.status >= 200 && res.status < 300) {
-      return self.callback(err, res);
-    }
-
-    var new_err = new Error(res.statusText || 'Unsuccessful HTTP response');
-    new_err.original = err;
-    new_err.response = res;
-    new_err.status = res.status;
-
-    self.callback(err || new_err, res);
-  });
-}
-
-/**
- * Mixin `Emitter`.
- */
-
-Emitter(Request.prototype);
-
-/**
- * Allow for extension
- */
-
-Request.prototype.use = function(fn) {
-  fn(this);
-  return this;
-}
-
-/**
- * Set timeout to `ms`.
- *
- * @param {Number} ms
- * @return {Request} for chaining
- * @api public
- */
-
-Request.prototype.timeout = function(ms){
-  this._timeout = ms;
-  return this;
-};
-
-/**
- * Clear previous timeout.
- *
- * @return {Request} for chaining
- * @api public
- */
-
-Request.prototype.clearTimeout = function(){
-  this._timeout = 0;
-  clearTimeout(this._timer);
-  return this;
-};
-
-/**
- * Abort the request, and clear potential timeout.
- *
- * @return {Request}
- * @api public
- */
-
-Request.prototype.abort = function(){
-  if (this.aborted) return;
-  this.aborted = true;
-  this.xhr.abort();
-  this.clearTimeout();
-  this.emit('abort');
-  return this;
-};
-
-/**
- * Set header `field` to `val`, or multiple fields with one object.
- *
- * Examples:
- *
- *      req.get('/')
- *        .set('Accept', 'application/json')
- *        .set('X-API-Key', 'foobar')
- *        .end(callback);
- *
- *      req.get('/')
- *        .set({ Accept: 'application/json', 'X-API-Key': 'foobar' })
- *        .end(callback);
- *
- * @param {String|Object} field
- * @param {String} val
- * @return {Request} for chaining
- * @api public
- */
-
-Request.prototype.set = function(field, val){
-  if (isObject(field)) {
-    for (var key in field) {
-      this.set(key, field[key]);
-    }
-    return this;
-  }
-  this._header[field.toLowerCase()] = val;
-  this.header[field] = val;
-  return this;
-};
-
-/**
- * Remove header `field`.
- *
- * Example:
- *
- *      req.get('/')
- *        .unset('User-Agent')
- *        .end(callback);
- *
- * @param {String} field
- * @return {Request} for chaining
- * @api public
- */
-
-Request.prototype.unset = function(field){
-  delete this._header[field.toLowerCase()];
-  delete this.header[field];
-  return this;
-};
-
-/**
- * Get case-insensitive header `field` value.
- *
- * @param {String} field
- * @return {String}
- * @api private
- */
-
-Request.prototype.getHeader = function(field){
-  return this._header[field.toLowerCase()];
-};
-
-/**
- * Set Content-Type to `type`, mapping values from `request.types`.
- *
- * Examples:
- *
- *      superagent.types.xml = 'application/xml';
- *
- *      request.post('/')
- *        .type('xml')
- *        .send(xmlstring)
- *        .end(callback);
- *
- *      request.post('/')
- *        .type('application/xml')
- *        .send(xmlstring)
- *        .end(callback);
- *
- * @param {String} type
- * @return {Request} for chaining
- * @api public
- */
-
-Request.prototype.type = function(type){
-  this.set('Content-Type', request.types[type] || type);
-  return this;
-};
-
-/**
- * Set Accept to `type`, mapping values from `request.types`.
- *
- * Examples:
- *
- *      superagent.types.json = 'application/json';
- *
- *      request.get('/agent')
- *        .accept('json')
- *        .end(callback);
- *
- *      request.get('/agent')
- *        .accept('application/json')
- *        .end(callback);
- *
- * @param {String} accept
- * @return {Request} for chaining
- * @api public
- */
-
-Request.prototype.accept = function(type){
-  this.set('Accept', request.types[type] || type);
-  return this;
-};
-
-/**
- * Set Authorization field value with `user` and `pass`.
- *
- * @param {String} user
- * @param {String} pass
- * @return {Request} for chaining
- * @api public
- */
-
-Request.prototype.auth = function(user, pass){
-  var str = btoa(user + ':' + pass);
-  this.set('Authorization', 'Basic ' + str);
-  return this;
-};
-
-/**
-* Add query-string `val`.
-*
-* Examples:
-*
-*   request.get('/shoes')
-*     .query('size=10')
-*     .query({ color: 'blue' })
-*
-* @param {Object|String} val
-* @return {Request} for chaining
-* @api public
-*/
-
-Request.prototype.query = function(val){
-  if ('string' != typeof val) val = serialize(val);
-  if (val) this._query.push(val);
-  return this;
-};
-
-/**
- * Write the field `name` and `val` for "multipart/form-data"
- * request bodies.
- *
- * ``` js
- * request.post('/upload')
- *   .field('foo', 'bar')
- *   .end(callback);
- * ```
- *
- * @param {String} name
- * @param {String|Blob|File} val
- * @return {Request} for chaining
- * @api public
- */
-
-Request.prototype.field = function(name, val){
-  if (!this._formData) this._formData = new root.FormData();
-  this._formData.append(name, val);
-  return this;
-};
-
-/**
- * Queue the given `file` as an attachment to the specified `field`,
- * with optional `filename`.
- *
- * ``` js
- * request.post('/upload')
- *   .attach(new Blob(['<a id="a"><b id="b">hey!</b></a>'], { type: "text/html"}))
- *   .end(callback);
- * ```
- *
- * @param {String} field
- * @param {Blob|File} file
- * @param {String} filename
- * @return {Request} for chaining
- * @api public
- */
-
-Request.prototype.attach = function(field, file, filename){
-  if (!this._formData) this._formData = new root.FormData();
-  this._formData.append(field, file, filename);
-  return this;
-};
-
-/**
- * Send `data`, defaulting the `.type()` to "json" when
- * an object is given.
- *
- * Examples:
- *
- *       // querystring
- *       request.get('/search')
- *         .end(callback)
- *
- *       // multiple data "writes"
- *       request.get('/search')
- *         .send({ search: 'query' })
- *         .send({ range: '1..5' })
- *         .send({ order: 'desc' })
- *         .end(callback)
- *
- *       // manual json
- *       request.post('/user')
- *         .type('json')
- *         .send('{"name":"tj"})
- *         .end(callback)
- *
- *       // auto json
- *       request.post('/user')
- *         .send({ name: 'tj' })
- *         .end(callback)
- *
- *       // manual x-www-form-urlencoded
- *       request.post('/user')
- *         .type('form')
- *         .send('name=tj')
- *         .end(callback)
- *
- *       // auto x-www-form-urlencoded
- *       request.post('/user')
- *         .type('form')
- *         .send({ name: 'tj' })
- *         .end(callback)
- *
- *       // defaults to x-www-form-urlencoded
-  *      request.post('/user')
-  *        .send('name=tobi')
-  *        .send('species=ferret')
-  *        .end(callback)
- *
- * @param {String|Object} data
- * @return {Request} for chaining
- * @api public
- */
-
-Request.prototype.send = function(data){
-  var obj = isObject(data);
-  var type = this.getHeader('Content-Type');
-
-  // merge
-  if (obj && isObject(this._data)) {
-    for (var key in data) {
-      this._data[key] = data[key];
-    }
-  } else if ('string' == typeof data) {
-    if (!type) this.type('form');
-    type = this.getHeader('Content-Type');
-    if ('application/x-www-form-urlencoded' == type) {
-      this._data = this._data
-        ? this._data + '&' + data
-        : data;
-    } else {
-      this._data = (this._data || '') + data;
-    }
-  } else {
-    this._data = data;
-  }
-
-  if (!obj || isHost(data)) return this;
-  if (!type) this.type('json');
-  return this;
-};
-
-/**
- * Invoke the callback with `err` and `res`
- * and handle arity check.
- *
- * @param {Error} err
- * @param {Response} res
- * @api private
- */
-
-Request.prototype.callback = function(err, res){
-  var fn = this._callback;
-  this.clearTimeout();
-  fn(err, res);
-};
-
-/**
- * Invoke callback with x-domain error.
- *
- * @api private
- */
-
-Request.prototype.crossDomainError = function(){
-  var err = new Error('Origin is not allowed by Access-Control-Allow-Origin');
-  err.crossDomain = true;
-  this.callback(err);
-};
-
-/**
- * Invoke callback with timeout error.
- *
- * @api private
- */
-
-Request.prototype.timeoutError = function(){
-  var timeout = this._timeout;
-  var err = new Error('timeout of ' + timeout + 'ms exceeded');
-  err.timeout = timeout;
-  this.callback(err);
-};
-
-/**
- * Enable transmission of cookies with x-domain requests.
- *
- * Note that for this to work the origin must not be
- * using "Access-Control-Allow-Origin" with a wildcard,
- * and also must set "Access-Control-Allow-Credentials"
- * to "true".
- *
- * @api public
- */
-
-Request.prototype.withCredentials = function(){
-  this._withCredentials = true;
-  return this;
-};
-
-/**
- * Initiate request, invoking callback `fn(res)`
- * with an instanceof `Response`.
- *
- * @param {Function} fn
- * @return {Request} for chaining
- * @api public
- */
-
-Request.prototype.end = function(fn){
-  var self = this;
-  var xhr = this.xhr = request.getXHR();
-  var query = this._query.join('&');
-  var timeout = this._timeout;
-  var data = this._formData || this._data;
-
-  // store callback
-  this._callback = fn || noop;
-
-  // state change
-  xhr.onreadystatechange = function(){
-    if (4 != xhr.readyState) return;
-
-    // In IE9, reads to any property (e.g. status) off of an aborted XHR will
-    // result in the error "Could not complete the operation due to error c00c023f"
-    var status;
-    try { status = xhr.status } catch(e) { status = 0; }
-
-    if (0 == status) {
-      if (self.timedout) return self.timeoutError();
-      if (self.aborted) return;
-      return self.crossDomainError();
-    }
-    self.emit('end');
-  };
-
-  // progress
-  var handleProgress = function(e){
-    if (e.total > 0) {
-      e.percent = e.loaded / e.total * 100;
-    }
-    self.emit('progress', e);
-  };
-  if (this.hasListeners('progress')) {
-    xhr.onprogress = handleProgress;
-  }
-  try {
-    if (xhr.upload && this.hasListeners('progress')) {
-      xhr.upload.onprogress = handleProgress;
-    }
-  } catch(e) {
-    // Accessing xhr.upload fails in IE from a web worker, so just pretend it doesn't exist.
-    // Reported here:
-    // https://connect.microsoft.com/IE/feedback/details/837245/xmlhttprequest-upload-throws-invalid-argument-when-used-from-web-worker-context
-  }
-
-  // timeout
-  if (timeout && !this._timer) {
-    this._timer = setTimeout(function(){
-      self.timedout = true;
-      self.abort();
-    }, timeout);
-  }
-
-  // querystring
-  if (query) {
-    query = request.serializeObject(query);
-    this.url += ~this.url.indexOf('?')
-      ? '&' + query
-      : '?' + query;
-  }
-
-  // initiate request
-  xhr.open(this.method, this.url, true);
-
-  // CORS
-  if (this._withCredentials) xhr.withCredentials = true;
-
-  // body
-  if ('GET' != this.method && 'HEAD' != this.method && 'string' != typeof data && !isHost(data)) {
-    // serialize stuff
-    var serialize = request.serialize[this.getHeader('Content-Type')];
-    if (serialize) data = serialize(data);
-  }
-
-  // set header fields
-  for (var field in this.header) {
-    if (null == this.header[field]) continue;
-    xhr.setRequestHeader(field, this.header[field]);
-  }
-
-  // send stuff
-  this.emit('request', this);
-  xhr.send(data);
-  return this;
-};
-
-/**
- * Expose `Request`.
- */
-
-request.Request = Request;
-
-/**
- * Issue a request:
- *
- * Examples:
- *
- *    request('GET', '/users').end(callback)
- *    request('/users').end(callback)
- *    request('/users', callback)
- *
- * @param {String} method
- * @param {String|Function} url or callback
- * @return {Request}
- * @api public
- */
-
-function request(method, url) {
-  // callback
-  if ('function' == typeof url) {
-    return new Request('GET', method).end(url);
-  }
-
-  // url first
-  if (1 == arguments.length) {
-    return new Request('GET', method);
-  }
-
-  return new Request(method, url);
-}
-
-/**
- * GET `url` with optional callback `fn(res)`.
- *
- * @param {String} url
- * @param {Mixed|Function} data or fn
- * @param {Function} fn
- * @return {Request}
- * @api public
- */
-
-request.get = function(url, data, fn){
-  var req = request('GET', url);
-  if ('function' == typeof data) fn = data, data = null;
-  if (data) req.query(data);
-  if (fn) req.end(fn);
-  return req;
-};
-
-/**
- * HEAD `url` with optional callback `fn(res)`.
- *
- * @param {String} url
- * @param {Mixed|Function} data or fn
- * @param {Function} fn
- * @return {Request}
- * @api public
- */
-
-request.head = function(url, data, fn){
-  var req = request('HEAD', url);
-  if ('function' == typeof data) fn = data, data = null;
-  if (data) req.send(data);
-  if (fn) req.end(fn);
-  return req;
-};
-
-/**
- * DELETE `url` with optional callback `fn(res)`.
- *
- * @param {String} url
- * @param {Function} fn
- * @return {Request}
- * @api public
- */
-
-request.del = function(url, fn){
-  var req = request('DELETE', url);
-  if (fn) req.end(fn);
-  return req;
-};
-
-/**
- * PATCH `url` with optional `data` and callback `fn(res)`.
- *
- * @param {String} url
- * @param {Mixed} data
- * @param {Function} fn
- * @return {Request}
- * @api public
- */
-
-request.patch = function(url, data, fn){
-  var req = request('PATCH', url);
-  if ('function' == typeof data) fn = data, data = null;
-  if (data) req.send(data);
-  if (fn) req.end(fn);
-  return req;
-};
-
-/**
- * POST `url` with optional `data` and callback `fn(res)`.
- *
- * @param {String} url
- * @param {Mixed} data
- * @param {Function} fn
- * @return {Request}
- * @api public
- */
-
-request.post = function(url, data, fn){
-  var req = request('POST', url);
-  if ('function' == typeof data) fn = data, data = null;
-  if (data) req.send(data);
-  if (fn) req.end(fn);
-  return req;
-};
-
-/**
- * PUT `url` with optional `data` and callback `fn(res)`.
- *
- * @param {String} url
- * @param {Mixed|Function} data or fn
- * @param {Function} fn
- * @return {Request}
- * @api public
- */
-
-request.put = function(url, data, fn){
-  var req = request('PUT', url);
-  if ('function' == typeof data) fn = data, data = null;
-  if (data) req.send(data);
-  if (fn) req.end(fn);
-  return req;
-};
-
-/**
- * Expose `request`.
- */
-
-module.exports = request;
-
-},{"emitter":64,"reduce":65}],64:[function(require,module,exports){
-
-/**
- * Expose `Emitter`.
- */
-
-module.exports = Emitter;
-
-/**
- * Initialize a new `Emitter`.
- *
- * @api public
- */
-
-function Emitter(obj) {
-  if (obj) return mixin(obj);
-};
-
-/**
- * Mixin the emitter properties.
- *
- * @param {Object} obj
- * @return {Object}
- * @api private
- */
-
-function mixin(obj) {
-  for (var key in Emitter.prototype) {
-    obj[key] = Emitter.prototype[key];
-  }
-  return obj;
-}
-
-/**
- * Listen on the given `event` with `fn`.
- *
- * @param {String} event
- * @param {Function} fn
- * @return {Emitter}
- * @api public
- */
-
-Emitter.prototype.on =
-Emitter.prototype.addEventListener = function(event, fn){
-  this._callbacks = this._callbacks || {};
-  (this._callbacks[event] = this._callbacks[event] || [])
-    .push(fn);
-  return this;
-};
-
-/**
- * Adds an `event` listener that will be invoked a single
- * time then automatically removed.
- *
- * @param {String} event
- * @param {Function} fn
- * @return {Emitter}
- * @api public
- */
-
-Emitter.prototype.once = function(event, fn){
-  var self = this;
-  this._callbacks = this._callbacks || {};
-
-  function on() {
-    self.off(event, on);
-    fn.apply(this, arguments);
-  }
-
-  on.fn = fn;
-  this.on(event, on);
-  return this;
-};
-
-/**
- * Remove the given callback for `event` or all
- * registered callbacks.
- *
- * @param {String} event
- * @param {Function} fn
- * @return {Emitter}
- * @api public
- */
-
-Emitter.prototype.off =
-Emitter.prototype.removeListener =
-Emitter.prototype.removeAllListeners =
-Emitter.prototype.removeEventListener = function(event, fn){
-  this._callbacks = this._callbacks || {};
-
-  // all
-  if (0 == arguments.length) {
-    this._callbacks = {};
-    return this;
-  }
-
-  // specific event
-  var callbacks = this._callbacks[event];
-  if (!callbacks) return this;
-
-  // remove all handlers
-  if (1 == arguments.length) {
-    delete this._callbacks[event];
-    return this;
-  }
-
-  // remove specific handler
-  var cb;
-  for (var i = 0; i < callbacks.length; i++) {
-    cb = callbacks[i];
-    if (cb === fn || cb.fn === fn) {
-      callbacks.splice(i, 1);
-      break;
-    }
-  }
-  return this;
-};
-
-/**
- * Emit `event` with the given args.
- *
- * @param {String} event
- * @param {Mixed} ...
- * @return {Emitter}
- */
-
-Emitter.prototype.emit = function(event){
-  this._callbacks = this._callbacks || {};
-  var args = [].slice.call(arguments, 1)
-    , callbacks = this._callbacks[event];
-
-  if (callbacks) {
-    callbacks = callbacks.slice(0);
-    for (var i = 0, len = callbacks.length; i < len; ++i) {
-      callbacks[i].apply(this, args);
-    }
-  }
-
-  return this;
-};
-
-/**
- * Return array of callbacks for `event`.
- *
- * @param {String} event
- * @return {Array}
- * @api public
- */
-
-Emitter.prototype.listeners = function(event){
-  this._callbacks = this._callbacks || {};
-  return this._callbacks[event] || [];
-};
-
-/**
- * Check if this emitter has `event` handlers.
- *
- * @param {String} event
- * @return {Boolean}
- * @api public
- */
-
-Emitter.prototype.hasListeners = function(event){
-  return !! this.listeners(event).length;
-};
-
-},{}],65:[function(require,module,exports){
-
-/**
- * Reduce `arr` with `fn`.
- *
- * @param {Array} arr
- * @param {Function} fn
- * @param {Mixed} initial
- *
- * TODO: combatible error handling?
- */
-
-module.exports = function(arr, fn, initial){
-  var idx = 0;
-  var len = arr.length;
-  var curr = arguments.length == 3
-    ? initial
-    : arr[idx++];
-
-  while (idx < len) {
-    curr = fn.call(null, curr, arr[idx], ++idx, arr);
-  }
-
-  return curr;
-};
-},{}],66:[function(require,module,exports){
+},{"traverse":60}],60:[function(require,module,exports){
 var traverse = module.exports = function (obj) {
     return new Traverse(obj);
 };
@@ -20111,7 +18498,7 @@ var hasOwnProperty = Object.hasOwnProperty || function (obj, key) {
     return key in obj;
 };
 
-},{}],67:[function(require,module,exports){
+},{}],61:[function(require,module,exports){
 'use strict';
 
 var container = require('./util/container'),
@@ -20145,7 +18532,7 @@ generate.extend = container.set;
 
 module.exports = generate;
 
-},{"./util/container":76,"./util/formats":78,"./util/traverse":83,"deref":85}],68:[function(require,module,exports){
+},{"./util/container":70,"./util/formats":72,"./util/traverse":77,"deref":79}],62:[function(require,module,exports){
 'use strict';
 
 var random = require('../util/random'),
@@ -20214,14 +18601,14 @@ module.exports = function(value, path) {
   return items;
 };
 
-},{"../util/error":77,"../util/has-props":79,"../util/random":82,"../util/traverse":83}],69:[function(require,module,exports){
+},{"../util/error":71,"../util/has-props":73,"../util/random":76,"../util/traverse":77}],63:[function(require,module,exports){
 'use strict';
 
 module.exports = function() {
   return Math.random() > 0.5;
 };
 
-},{}],70:[function(require,module,exports){
+},{}],64:[function(require,module,exports){
 'use strict';
 
 var number = require('./number');
@@ -20232,14 +18619,14 @@ module.exports = function(value) {
   return Math.floor(number(value));
 };
 
-},{"./number":72}],71:[function(require,module,exports){
+},{"./number":66}],65:[function(require,module,exports){
 'use strict';
 
 module.exports = function() {
   return null;
 };
 
-},{}],72:[function(require,module,exports){
+},{}],66:[function(require,module,exports){
 'use strict';
 
 var MIN_INTEGER = -100000000,
@@ -20281,7 +18668,7 @@ module.exports = function(value) {
   return random(Math.random() > 0.5, min, max);
 };
 
-},{"../util/random":82,"./string":74}],73:[function(require,module,exports){
+},{"../util/random":76,"./string":68}],67:[function(require,module,exports){
 'use strict';
 
 var container = require('../util/container'),
@@ -20345,7 +18732,7 @@ module.exports = function(value, path) {
   return traverse(props, path.concat(['properties']));
 };
 
-},{"../util/container":76,"../util/error":77,"../util/has-props":79,"../util/random":82,"../util/traverse":83}],74:[function(require,module,exports){
+},{"../util/container":70,"../util/error":71,"../util/has-props":73,"../util/random":76,"../util/traverse":77}],68:[function(require,module,exports){
 'use strict';
 
 var container = require('../util/container');
@@ -20466,7 +18853,7 @@ module.exports = function(value) {
   return faker.lorem.words(random(1, 5)).join(' ');
 };
 
-},{"../util/container":76,"../util/formats":78,"../util/random":82}],75:[function(require,module,exports){
+},{"../util/container":70,"../util/formats":72,"../util/random":76}],69:[function(require,module,exports){
 'use strict';
 
 function combine(target) {
@@ -20483,7 +18870,7 @@ function combine(target) {
 
 module.exports = combine;
 
-},{}],76:[function(require,module,exports){
+},{}],70:[function(require,module,exports){
 'use strict';
 
 // static requires - handle both initial dependency load (deps will be available
@@ -20509,7 +18896,7 @@ module.exports = {
   }
 };
 
-},{"chance":84,"faker":191,"randexp":195}],77:[function(require,module,exports){
+},{"chance":78,"faker":185,"randexp":189}],71:[function(require,module,exports){
 'use strict';
 
 function ParseError(message, path) {
@@ -20522,7 +18909,7 @@ ParseError.prototype = Error.prototype;
 
 module.exports = ParseError;
 
-},{}],78:[function(require,module,exports){
+},{}],72:[function(require,module,exports){
 'use strict';
 
 var registry = {};
@@ -20541,7 +18928,7 @@ module.exports = function(name, callback) {
   return registry;
 };
 
-},{}],79:[function(require,module,exports){
+},{}],73:[function(require,module,exports){
 'use strict';
 
 module.exports = function(obj) {
@@ -20550,7 +18937,7 @@ module.exports = function(obj) {
   }).length > 0;
 };
 
-},{}],80:[function(require,module,exports){
+},{}],74:[function(require,module,exports){
 'use strict';
 
 var inferredProperties = {
@@ -20600,7 +18987,7 @@ module.exports = function(obj) {
   }
 };
 
-},{}],81:[function(require,module,exports){
+},{}],75:[function(require,module,exports){
 'use strict';
 
 module.exports = {
@@ -20613,7 +19000,7 @@ module.exports = {
   string: require('../types/string')
 };
 
-},{"../types/array":68,"../types/boolean":69,"../types/integer":70,"../types/null":71,"../types/number":72,"../types/object":73,"../types/string":74}],82:[function(require,module,exports){
+},{"../types/array":62,"../types/boolean":63,"../types/integer":64,"../types/null":65,"../types/number":66,"../types/object":67,"../types/string":68}],76:[function(require,module,exports){
 'use strict';
 
 var container = require('./container');
@@ -20671,7 +19058,7 @@ random.pick = function(obj) {
 random.MIN_NUMBER = -100;
 random.MAX_NUMBER = 100;
 
-},{"./container":76}],83:[function(require,module,exports){
+},{"./container":70}],77:[function(require,module,exports){
 'use strict';
 
 var random = require('./random'),
@@ -20774,7 +19161,7 @@ function traverse(obj, path) {
 
 module.exports = traverse;
 
-},{"./combine":75,"./error":77,"./inferred":80,"./primitives":81,"./random":82}],84:[function(require,module,exports){
+},{"./combine":69,"./error":71,"./inferred":74,"./primitives":75,"./random":76}],78:[function(require,module,exports){
 (function (Buffer){
 //  Chance.js 0.7.6
 //  http://chancejs.com
@@ -23292,7 +21679,7 @@ module.exports = traverse;
 
 }).call(this,require("buffer").Buffer)
 
-},{"buffer":12}],85:[function(require,module,exports){
+},{"buffer":12}],79:[function(require,module,exports){
 'use strict';
 
 var $ = require('./util/uri-helpers');
@@ -23351,7 +21738,7 @@ var instance = module.exports = function() {
 
 instance.util = $;
 
-},{"./util/find-reference":87,"./util/normalize-schema":88,"./util/resolve-schema":89,"./util/uri-helpers":90}],86:[function(require,module,exports){
+},{"./util/find-reference":81,"./util/normalize-schema":82,"./util/resolve-schema":83,"./util/uri-helpers":84}],80:[function(require,module,exports){
 'use strict';
 
 var clone = module.exports = function(obj) {
@@ -23378,7 +21765,7 @@ var clone = module.exports = function(obj) {
   return target;
 };
 
-},{}],87:[function(require,module,exports){
+},{}],81:[function(require,module,exports){
 'use strict';
 
 var $ = require('./uri-helpers');
@@ -23426,7 +21813,7 @@ var find = module.exports = function(id, refs) {
   return target;
 };
 
-},{"./uri-helpers":90}],88:[function(require,module,exports){
+},{"./uri-helpers":84}],82:[function(require,module,exports){
 'use strict';
 
 var $ = require('./uri-helpers');
@@ -23492,7 +21879,7 @@ module.exports = function(fakeroot, schema, push) {
   return copy;
 };
 
-},{"./clone-obj":86,"./uri-helpers":90}],89:[function(require,module,exports){
+},{"./clone-obj":80,"./uri-helpers":84}],83:[function(require,module,exports){
 'use strict';
 
 var $ = require('./uri-helpers');
@@ -23550,7 +21937,7 @@ module.exports = function(obj, refs, expand) {
   return clone(obj, refs, false, expand);
 };
 
-},{"./find-reference":87,"./uri-helpers":90}],90:[function(require,module,exports){
+},{"./find-reference":81,"./uri-helpers":84}],84:[function(require,module,exports){
 'use strict';
 
 // https://gist.github.com/pjt33/efb2f1134bab986113fd
@@ -23651,7 +22038,7 @@ module.exports = {
   getDocumentURI: getDocumentURI
 };
 
-},{}],91:[function(require,module,exports){
+},{}],85:[function(require,module,exports){
 function Address (faker) {
   var f = faker.fake,
       Helpers = faker.helpers;
@@ -23782,7 +22169,7 @@ function Address (faker) {
 
 module.exports = Address;
 
-},{}],92:[function(require,module,exports){
+},{}],86:[function(require,module,exports){
 var Commerce = function (faker) {
   var self = this;
 
@@ -23872,7 +22259,7 @@ var Commerce = function (faker) {
 };
 
 module['exports'] = Commerce;
-},{}],93:[function(require,module,exports){
+},{}],87:[function(require,module,exports){
 var Company = function (faker) {
 
   var self = this;
@@ -23937,7 +22324,7 @@ var Company = function (faker) {
 }
 
 module['exports'] = Company;
-},{}],94:[function(require,module,exports){
+},{}],88:[function(require,module,exports){
 var _Date = function (faker) {
   var self = this;
   self.past = function (years, refDate) {
@@ -24028,7 +22415,7 @@ var _Date = function (faker) {
 };
 
 module['exports'] = _Date;
-},{}],95:[function(require,module,exports){
+},{}],89:[function(require,module,exports){
 /*
   fake.js - generator method for combining faker methods based on string input
 
@@ -24092,7 +22479,7 @@ function Fake (faker) {
 }
 
 module['exports'] = Fake;
-},{}],96:[function(require,module,exports){
+},{}],90:[function(require,module,exports){
 var Finance = function (faker) {
   var Helpers = faker.helpers,
       self = this;
@@ -24179,7 +22566,7 @@ var Finance = function (faker) {
 }
 
 module['exports'] = Finance;
-},{}],97:[function(require,module,exports){
+},{}],91:[function(require,module,exports){
 var Hacker = function (faker) {
   var self = this;
 
@@ -24231,7 +22618,7 @@ var Hacker = function (faker) {
 };
 
 module['exports'] = Hacker;
-},{}],98:[function(require,module,exports){
+},{}],92:[function(require,module,exports){
 var Helpers = function (faker) {
 
   var self = this;
@@ -24433,7 +22820,7 @@ String.prototype.capitalize = function () { //v1.0
 */
 
 module['exports'] = Helpers;
-},{}],99:[function(require,module,exports){
+},{}],93:[function(require,module,exports){
 var Image = function (faker) {
 
   var self = this;
@@ -24497,7 +22884,7 @@ var Image = function (faker) {
 }
 
 module["exports"] = Image;
-},{}],100:[function(require,module,exports){
+},{}],94:[function(require,module,exports){
 /*
 
    this index.js file is used for including the faker library as a CommonJS module, instead of a bundle
@@ -24632,7 +23019,7 @@ Faker.prototype.seed = function(value) {
 }
 module['exports'] = Faker;
 
-},{"./address":91,"./commerce":92,"./company":93,"./date":94,"./fake":95,"./finance":96,"./hacker":97,"./helpers":98,"./image":99,"./internet":101,"./lorem":187,"./name":188,"./phone_number":189,"./random":190}],101:[function(require,module,exports){
+},{"./address":85,"./commerce":86,"./company":87,"./date":88,"./fake":89,"./finance":90,"./hacker":91,"./helpers":92,"./image":93,"./internet":95,"./lorem":181,"./name":182,"./phone_number":183,"./random":184}],95:[function(require,module,exports){
 var password_generator = require('../vendor/password-generator.js'),
     random_ua = require('../vendor/user-agent');
 
@@ -24747,14 +23134,14 @@ var Internet = function (faker) {
 
 module["exports"] = Internet;
 
-},{"../vendor/password-generator.js":193,"../vendor/user-agent":194}],102:[function(require,module,exports){
+},{"../vendor/password-generator.js":187,"../vendor/user-agent":188}],96:[function(require,module,exports){
 module["exports"] = [
   "#####",
   "####",
   "###"
 ];
 
-},{}],103:[function(require,module,exports){
+},{}],97:[function(require,module,exports){
 module["exports"] = [
   "#{city_prefix} #{Name.first_name}#{city_suffix}",
   "#{city_prefix} #{Name.first_name}",
@@ -24762,7 +23149,7 @@ module["exports"] = [
   "#{Name.last_name}#{city_suffix}"
 ];
 
-},{}],104:[function(require,module,exports){
+},{}],98:[function(require,module,exports){
 module["exports"] = [
   "North",
   "East",
@@ -24773,7 +23160,7 @@ module["exports"] = [
   "Port"
 ];
 
-},{}],105:[function(require,module,exports){
+},{}],99:[function(require,module,exports){
 module["exports"] = [
   "town",
   "ton",
@@ -24796,7 +23183,7 @@ module["exports"] = [
   "shire"
 ];
 
-},{}],106:[function(require,module,exports){
+},{}],100:[function(require,module,exports){
 module["exports"] = [
   "Afghanistan",
   "Albania",
@@ -25045,7 +23432,7 @@ module["exports"] = [
   "Zimbabwe"
 ];
 
-},{}],107:[function(require,module,exports){
+},{}],101:[function(require,module,exports){
 module["exports"] = [
   "AD",
   "AE",
@@ -25299,7 +23686,7 @@ module["exports"] = [
   "ZW"
 ];
 
-},{}],108:[function(require,module,exports){
+},{}],102:[function(require,module,exports){
 module["exports"] = [
   "Avon",
   "Bedfordshire",
@@ -25309,12 +23696,12 @@ module["exports"] = [
   "Cambridgeshire"
 ];
 
-},{}],109:[function(require,module,exports){
+},{}],103:[function(require,module,exports){
 module["exports"] = [
   "United States of America"
 ];
 
-},{}],110:[function(require,module,exports){
+},{}],104:[function(require,module,exports){
 var address = {};
 module['exports'] = address;
 address.city_prefix = require("./city_prefix");
@@ -25335,21 +23722,21 @@ address.street_name = require("./street_name");
 address.street_address = require("./street_address");
 address.default_country = require("./default_country");
 
-},{"./building_number":102,"./city":103,"./city_prefix":104,"./city_suffix":105,"./country":106,"./country_code":107,"./county":108,"./default_country":109,"./postcode":111,"./postcode_by_state":112,"./secondary_address":113,"./state":114,"./state_abbr":115,"./street_address":116,"./street_name":117,"./street_suffix":118,"./time_zone":119}],111:[function(require,module,exports){
+},{"./building_number":96,"./city":97,"./city_prefix":98,"./city_suffix":99,"./country":100,"./country_code":101,"./county":102,"./default_country":103,"./postcode":105,"./postcode_by_state":106,"./secondary_address":107,"./state":108,"./state_abbr":109,"./street_address":110,"./street_name":111,"./street_suffix":112,"./time_zone":113}],105:[function(require,module,exports){
 module["exports"] = [
   "#####",
   "#####-####"
 ];
 
-},{}],112:[function(require,module,exports){
-arguments[4][111][0].apply(exports,arguments)
-},{"dup":111}],113:[function(require,module,exports){
+},{}],106:[function(require,module,exports){
+arguments[4][105][0].apply(exports,arguments)
+},{"dup":105}],107:[function(require,module,exports){
 module["exports"] = [
   "Apt. ###",
   "Suite ###"
 ];
 
-},{}],114:[function(require,module,exports){
+},{}],108:[function(require,module,exports){
 module["exports"] = [
   "Alabama",
   "Alaska",
@@ -25403,7 +23790,7 @@ module["exports"] = [
   "Wyoming"
 ];
 
-},{}],115:[function(require,module,exports){
+},{}],109:[function(require,module,exports){
 module["exports"] = [
   "AL",
   "AK",
@@ -25457,18 +23844,18 @@ module["exports"] = [
   "WY"
 ];
 
-},{}],116:[function(require,module,exports){
+},{}],110:[function(require,module,exports){
 module["exports"] = [
   "#{building_number} #{street_name}"
 ];
 
-},{}],117:[function(require,module,exports){
+},{}],111:[function(require,module,exports){
 module["exports"] = [
   "#{Name.first_name} #{street_suffix}",
   "#{Name.last_name} #{street_suffix}"
 ];
 
-},{}],118:[function(require,module,exports){
+},{}],112:[function(require,module,exports){
 module["exports"] = [
   "Alley",
   "Avenue",
@@ -25697,7 +24084,7 @@ module["exports"] = [
   "Wells"
 ];
 
-},{}],119:[function(require,module,exports){
+},{}],113:[function(require,module,exports){
 module["exports"] = [
   "Pacific/Midway",
   "Pacific/Pago_Pago",
@@ -25844,20 +24231,20 @@ module["exports"] = [
   "Pacific/Apia"
 ];
 
-},{}],120:[function(require,module,exports){
+},{}],114:[function(require,module,exports){
 module["exports"] = [
   "#{Name.name}",
   "#{Company.name}"
 ];
 
-},{}],121:[function(require,module,exports){
+},{}],115:[function(require,module,exports){
 var app = {};
 module['exports'] = app;
 app.name = require("./name");
 app.version = require("./version");
 app.author = require("./author");
 
-},{"./author":120,"./name":122,"./version":123}],122:[function(require,module,exports){
+},{"./author":114,"./name":116,"./version":117}],116:[function(require,module,exports){
 module["exports"] = [
   "Redhold",
   "Treeflex",
@@ -25923,7 +24310,7 @@ module["exports"] = [
   "Keylex"
 ];
 
-},{}],123:[function(require,module,exports){
+},{}],117:[function(require,module,exports){
 module["exports"] = [
   "0.#.#",
   "0.##",
@@ -25932,7 +24319,7 @@ module["exports"] = [
   "#.#.#"
 ];
 
-},{}],124:[function(require,module,exports){
+},{}],118:[function(require,module,exports){
 module["exports"] = [
   "2011-10-12",
   "2012-11-12",
@@ -25940,7 +24327,7 @@ module["exports"] = [
   "2013-9-12"
 ];
 
-},{}],125:[function(require,module,exports){
+},{}],119:[function(require,module,exports){
 module["exports"] = [
   "1234-2121-1221-1211",
   "1212-1221-1121-1234",
@@ -25948,7 +24335,7 @@ module["exports"] = [
   "1228-1221-1221-1431"
 ];
 
-},{}],126:[function(require,module,exports){
+},{}],120:[function(require,module,exports){
 module["exports"] = [
   "visa",
   "mastercard",
@@ -25956,14 +24343,14 @@ module["exports"] = [
   "discover"
 ];
 
-},{}],127:[function(require,module,exports){
+},{}],121:[function(require,module,exports){
 var business = {};
 module['exports'] = business;
 business.credit_card_numbers = require("./credit_card_numbers");
 business.credit_card_expiry_dates = require("./credit_card_expiry_dates");
 business.credit_card_types = require("./credit_card_types");
 
-},{"./credit_card_expiry_dates":124,"./credit_card_numbers":125,"./credit_card_types":126}],128:[function(require,module,exports){
+},{"./credit_card_expiry_dates":118,"./credit_card_numbers":119,"./credit_card_types":120}],122:[function(require,module,exports){
 module["exports"] = [
   "###-###-####",
   "(###) ###-####",
@@ -25971,12 +24358,12 @@ module["exports"] = [
   "###.###.####"
 ];
 
-},{}],129:[function(require,module,exports){
+},{}],123:[function(require,module,exports){
 var cell_phone = {};
 module['exports'] = cell_phone;
 cell_phone.formats = require("./formats");
 
-},{"./formats":128}],130:[function(require,module,exports){
+},{"./formats":122}],124:[function(require,module,exports){
 module["exports"] = [
   "red",
   "green",
@@ -26011,7 +24398,7 @@ module["exports"] = [
   "silver"
 ];
 
-},{}],131:[function(require,module,exports){
+},{}],125:[function(require,module,exports){
 module["exports"] = [
   "Books",
   "Movies",
@@ -26037,14 +24424,14 @@ module["exports"] = [
   "Industrial"
 ];
 
-},{}],132:[function(require,module,exports){
+},{}],126:[function(require,module,exports){
 var commerce = {};
 module['exports'] = commerce;
 commerce.color = require("./color");
 commerce.department = require("./department");
 commerce.product_name = require("./product_name");
 
-},{"./color":130,"./department":131,"./product_name":133}],133:[function(require,module,exports){
+},{"./color":124,"./department":125,"./product_name":127}],127:[function(require,module,exports){
 module["exports"] = {
   "adjective": [
     "Small",
@@ -26106,7 +24493,7 @@ module["exports"] = {
   ]
 };
 
-},{}],134:[function(require,module,exports){
+},{}],128:[function(require,module,exports){
 module["exports"] = [
   "Adaptive",
   "Advanced",
@@ -26210,7 +24597,7 @@ module["exports"] = [
   "Vision-oriented"
 ];
 
-},{}],135:[function(require,module,exports){
+},{}],129:[function(require,module,exports){
 module["exports"] = [
   "clicks-and-mortar",
   "value-added",
@@ -26279,7 +24666,7 @@ module["exports"] = [
   "rich"
 ];
 
-},{}],136:[function(require,module,exports){
+},{}],130:[function(require,module,exports){
 module["exports"] = [
   "synergies",
   "web-readiness",
@@ -26327,7 +24714,7 @@ module["exports"] = [
   "methodologies"
 ];
 
-},{}],137:[function(require,module,exports){
+},{}],131:[function(require,module,exports){
 module["exports"] = [
   "implement",
   "utilize",
@@ -26391,7 +24778,7 @@ module["exports"] = [
   "recontextualize"
 ];
 
-},{}],138:[function(require,module,exports){
+},{}],132:[function(require,module,exports){
 module["exports"] = [
   "24 hour",
   "24/7",
@@ -26496,7 +24883,7 @@ module["exports"] = [
   "zero tolerance"
 ];
 
-},{}],139:[function(require,module,exports){
+},{}],133:[function(require,module,exports){
 var company = {};
 module['exports'] = company;
 company.suffix = require("./suffix");
@@ -26508,14 +24895,14 @@ company.bs_adjective = require("./bs_adjective");
 company.bs_noun = require("./bs_noun");
 company.name = require("./name");
 
-},{"./adjective":134,"./bs_adjective":135,"./bs_noun":136,"./bs_verb":137,"./descriptor":138,"./name":140,"./noun":141,"./suffix":142}],140:[function(require,module,exports){
+},{"./adjective":128,"./bs_adjective":129,"./bs_noun":130,"./bs_verb":131,"./descriptor":132,"./name":134,"./noun":135,"./suffix":136}],134:[function(require,module,exports){
 module["exports"] = [
   "#{Name.last_name} #{suffix}",
   "#{Name.last_name}-#{Name.last_name}",
   "#{Name.last_name}, #{Name.last_name} and #{Name.last_name}"
 ];
 
-},{}],141:[function(require,module,exports){
+},{}],135:[function(require,module,exports){
 module["exports"] = [
   "ability",
   "access",
@@ -26623,7 +25010,7 @@ module["exports"] = [
   "workforce"
 ];
 
-},{}],142:[function(require,module,exports){
+},{}],136:[function(require,module,exports){
 module["exports"] = [
   "Inc",
   "and Sons",
@@ -26631,19 +25018,19 @@ module["exports"] = [
   "Group"
 ];
 
-},{}],143:[function(require,module,exports){
+},{}],137:[function(require,module,exports){
 module["exports"] = [
   "/34##-######-####L/",
   "/37##-######-####L/"
 ];
 
-},{}],144:[function(require,module,exports){
+},{}],138:[function(require,module,exports){
 module["exports"] = [
   "/30[0-5]#-######-###L/",
   "/368#-######-###L/"
 ];
 
-},{}],145:[function(require,module,exports){
+},{}],139:[function(require,module,exports){
 module["exports"] = [
   "/6011-####-####-###L/",
   "/65##-####-####-###L/",
@@ -26653,7 +25040,7 @@ module["exports"] = [
   "/64[4-9]#-62##-####-####-###L/"
 ];
 
-},{}],146:[function(require,module,exports){
+},{}],140:[function(require,module,exports){
 var credit_card = {};
 module['exports'] = credit_card;
 credit_card.visa = require("./visa");
@@ -26667,14 +25054,14 @@ credit_card.solo = require("./solo");
 credit_card.maestro = require("./maestro");
 credit_card.laser = require("./laser");
 
-},{"./american_express":143,"./diners_club":144,"./discover":145,"./jcb":147,"./laser":148,"./maestro":149,"./mastercard":150,"./solo":151,"./switch":152,"./visa":153}],147:[function(require,module,exports){
+},{"./american_express":137,"./diners_club":138,"./discover":139,"./jcb":141,"./laser":142,"./maestro":143,"./mastercard":144,"./solo":145,"./switch":146,"./visa":147}],141:[function(require,module,exports){
 module["exports"] = [
   "/3528-####-####-###L/",
   "/3529-####-####-###L/",
   "/35[3-8]#-####-####-###L/"
 ];
 
-},{}],148:[function(require,module,exports){
+},{}],142:[function(require,module,exports){
 module["exports"] = [
   "/6304###########L/",
   "/6706###########L/",
@@ -26686,46 +25073,46 @@ module["exports"] = [
   "/6709#########{5,6}L/"
 ];
 
-},{}],149:[function(require,module,exports){
+},{}],143:[function(require,module,exports){
 module["exports"] = [
   "/50#{9,16}L/",
   "/5[6-8]#{9,16}L/",
   "/56##{9,16}L/"
 ];
 
-},{}],150:[function(require,module,exports){
+},{}],144:[function(require,module,exports){
 module["exports"] = [
   "/5[1-5]##-####-####-###L/",
   "/6771-89##-####-###L/"
 ];
 
-},{}],151:[function(require,module,exports){
+},{}],145:[function(require,module,exports){
 module["exports"] = [
   "/6767-####-####-###L/",
   "/6767-####-####-####-#L/",
   "/6767-####-####-####-##L/"
 ];
 
-},{}],152:[function(require,module,exports){
+},{}],146:[function(require,module,exports){
 module["exports"] = [
   "/6759-####-####-###L/",
   "/6759-####-####-####-#L/",
   "/6759-####-####-####-##L/"
 ];
 
-},{}],153:[function(require,module,exports){
+},{}],147:[function(require,module,exports){
 module["exports"] = [
   "/4###########L/",
   "/4###-####-####-###L/"
 ];
 
-},{}],154:[function(require,module,exports){
+},{}],148:[function(require,module,exports){
 var date = {};
 module["exports"] = date;
 date.month = require("./month");
 date.weekday = require("./weekday");
 
-},{"./month":155,"./weekday":156}],155:[function(require,module,exports){
+},{"./month":149,"./weekday":150}],149:[function(require,module,exports){
 // Source: http://unicode.org/cldr/trac/browser/tags/release-27/common/main/en.xml#L1799
 module["exports"] = {
   wide: [
@@ -26790,7 +25177,7 @@ module["exports"] = {
   ]
 };
 
-},{}],156:[function(require,module,exports){
+},{}],150:[function(require,module,exports){
 // Source: http://unicode.org/cldr/trac/browser/tags/release-27/common/main/en.xml#L1847
 module["exports"] = {
   wide: [
@@ -26835,7 +25222,7 @@ module["exports"] = {
   ]
 };
 
-},{}],157:[function(require,module,exports){
+},{}],151:[function(require,module,exports){
 module["exports"] = [
   "Checking",
   "Savings",
@@ -26847,7 +25234,7 @@ module["exports"] = [
   "Personal Loan"
 ];
 
-},{}],158:[function(require,module,exports){
+},{}],152:[function(require,module,exports){
 module["exports"] = {
   "UAE Dirham": {
     "code": "AED",
@@ -27527,14 +25914,14 @@ module["exports"] = {
   }
 };
 
-},{}],159:[function(require,module,exports){
+},{}],153:[function(require,module,exports){
 var finance = {};
 module['exports'] = finance;
 finance.account_type = require("./account_type");
 finance.transaction_type = require("./transaction_type");
 finance.currency = require("./currency");
 
-},{"./account_type":157,"./currency":158,"./transaction_type":160}],160:[function(require,module,exports){
+},{"./account_type":151,"./currency":152,"./transaction_type":154}],154:[function(require,module,exports){
 module["exports"] = [
   "deposit",
   "withdrawal",
@@ -27542,7 +25929,7 @@ module["exports"] = [
   "invoice"
 ];
 
-},{}],161:[function(require,module,exports){
+},{}],155:[function(require,module,exports){
 module["exports"] = [
   "TCP",
   "HTTP",
@@ -27575,7 +25962,7 @@ module["exports"] = [
   "JBOD"
 ];
 
-},{}],162:[function(require,module,exports){
+},{}],156:[function(require,module,exports){
 module["exports"] = [
   "auxiliary",
   "primary",
@@ -27597,7 +25984,7 @@ module["exports"] = [
   "mobile"
 ];
 
-},{}],163:[function(require,module,exports){
+},{}],157:[function(require,module,exports){
 var hacker = {};
 module['exports'] = hacker;
 hacker.abbreviation = require("./abbreviation");
@@ -27606,7 +25993,7 @@ hacker.noun = require("./noun");
 hacker.verb = require("./verb");
 hacker.ingverb = require("./ingverb");
 
-},{"./abbreviation":161,"./adjective":162,"./ingverb":164,"./noun":165,"./verb":166}],164:[function(require,module,exports){
+},{"./abbreviation":155,"./adjective":156,"./ingverb":158,"./noun":159,"./verb":160}],158:[function(require,module,exports){
 module["exports"] = [
   "backing up",
   "bypassing",
@@ -27626,7 +26013,7 @@ module["exports"] = [
   "parsing"
 ];
 
-},{}],165:[function(require,module,exports){
+},{}],159:[function(require,module,exports){
 module["exports"] = [
   "driver",
   "protocol",
@@ -27654,7 +26041,7 @@ module["exports"] = [
   "matrix"
 ];
 
-},{}],166:[function(require,module,exports){
+},{}],160:[function(require,module,exports){
 module["exports"] = [
   "back up",
   "bypass",
@@ -27676,7 +26063,7 @@ module["exports"] = [
   "parse"
 ];
 
-},{}],167:[function(require,module,exports){
+},{}],161:[function(require,module,exports){
 var en = {};
 module['exports'] = en;
 en.title = "English";
@@ -27697,7 +26084,7 @@ en.app = require("./app");
 en.finance = require("./finance");
 en.date = require("./date");
 
-},{"./address":110,"./app":121,"./business":127,"./cell_phone":129,"./commerce":132,"./company":139,"./credit_card":146,"./date":154,"./finance":159,"./hacker":163,"./internet":171,"./lorem":172,"./name":176,"./phone_number":183,"./team":185}],168:[function(require,module,exports){
+},{"./address":104,"./app":115,"./business":121,"./cell_phone":123,"./commerce":126,"./company":133,"./credit_card":140,"./date":148,"./finance":153,"./hacker":157,"./internet":165,"./lorem":166,"./name":170,"./phone_number":177,"./team":179}],162:[function(require,module,exports){
 module["exports"] = [
   "https://s3.amazonaws.com/uifaces/faces/twitter/jarjan/128.jpg",
   "https://s3.amazonaws.com/uifaces/faces/twitter/mahdif/128.jpg",
@@ -28967,7 +27354,7 @@ module["exports"] = [
   "https://s3.amazonaws.com/uifaces/faces/twitter/areandacom/128.jpg"
 ];
 
-},{}],169:[function(require,module,exports){
+},{}],163:[function(require,module,exports){
 module["exports"] = [
   "com",
   "biz",
@@ -28977,27 +27364,27 @@ module["exports"] = [
   "org"
 ];
 
-},{}],170:[function(require,module,exports){
+},{}],164:[function(require,module,exports){
 module["exports"] = [
   "gmail.com",
   "yahoo.com",
   "hotmail.com"
 ];
 
-},{}],171:[function(require,module,exports){
+},{}],165:[function(require,module,exports){
 var internet = {};
 module['exports'] = internet;
 internet.free_email = require("./free_email");
 internet.domain_suffix = require("./domain_suffix");
 internet.avatar_uri = require("./avatar_uri");
 
-},{"./avatar_uri":168,"./domain_suffix":169,"./free_email":170}],172:[function(require,module,exports){
+},{"./avatar_uri":162,"./domain_suffix":163,"./free_email":164}],166:[function(require,module,exports){
 var lorem = {};
 module['exports'] = lorem;
 lorem.words = require("./words");
 lorem.supplemental = require("./supplemental");
 
-},{"./supplemental":173,"./words":174}],173:[function(require,module,exports){
+},{"./supplemental":167,"./words":168}],167:[function(require,module,exports){
 module["exports"] = [
   "abbas",
   "abduco",
@@ -29841,7 +28228,7 @@ module["exports"] = [
   "xiphias"
 ];
 
-},{}],174:[function(require,module,exports){
+},{}],168:[function(require,module,exports){
 module["exports"] = [
   "alias",
   "consequatur",
@@ -30094,7 +28481,7 @@ module["exports"] = [
   "repellat"
 ];
 
-},{}],175:[function(require,module,exports){
+},{}],169:[function(require,module,exports){
 module["exports"] = [
   "Aaliyah",
   "Aaron",
@@ -33105,7 +31492,7 @@ module["exports"] = [
   "Zula"
 ];
 
-},{}],176:[function(require,module,exports){
+},{}],170:[function(require,module,exports){
 var name = {};
 module['exports'] = name;
 name.first_name = require("./first_name");
@@ -33115,7 +31502,7 @@ name.suffix = require("./suffix");
 name.title = require("./title");
 name.name = require("./name");
 
-},{"./first_name":175,"./last_name":177,"./name":178,"./prefix":179,"./suffix":180,"./title":181}],177:[function(require,module,exports){
+},{"./first_name":169,"./last_name":171,"./name":172,"./prefix":173,"./suffix":174,"./title":175}],171:[function(require,module,exports){
 module["exports"] = [
   "Abbott",
   "Abernathy",
@@ -33593,7 +31980,7 @@ module["exports"] = [
   "Zulauf"
 ];
 
-},{}],178:[function(require,module,exports){
+},{}],172:[function(require,module,exports){
 module["exports"] = [
   "#{prefix} #{first_name} #{last_name}",
   "#{first_name} #{last_name} #{suffix}",
@@ -33603,7 +31990,7 @@ module["exports"] = [
   "#{first_name} #{last_name}"
 ];
 
-},{}],179:[function(require,module,exports){
+},{}],173:[function(require,module,exports){
 module["exports"] = [
   "Mr.",
   "Mrs.",
@@ -33612,7 +31999,7 @@ module["exports"] = [
   "Dr."
 ];
 
-},{}],180:[function(require,module,exports){
+},{}],174:[function(require,module,exports){
 module["exports"] = [
   "Jr.",
   "Sr.",
@@ -33627,7 +32014,7 @@ module["exports"] = [
   "DVM"
 ];
 
-},{}],181:[function(require,module,exports){
+},{}],175:[function(require,module,exports){
 module["exports"] = {
   "descriptor": [
     "Lead",
@@ -33721,7 +32108,7 @@ module["exports"] = {
   ]
 };
 
-},{}],182:[function(require,module,exports){
+},{}],176:[function(require,module,exports){
 module["exports"] = [
   "###-###-####",
   "(###) ###-####",
@@ -33745,12 +32132,12 @@ module["exports"] = [
   "###.###.#### x#####"
 ];
 
-},{}],183:[function(require,module,exports){
+},{}],177:[function(require,module,exports){
 var phone_number = {};
 module['exports'] = phone_number;
 phone_number.formats = require("./formats");
 
-},{"./formats":182}],184:[function(require,module,exports){
+},{"./formats":176}],178:[function(require,module,exports){
 module["exports"] = [
   "ants",
   "bats",
@@ -33821,18 +32208,18 @@ module["exports"] = [
   "druids"
 ];
 
-},{}],185:[function(require,module,exports){
+},{}],179:[function(require,module,exports){
 var team = {};
 module['exports'] = team;
 team.creature = require("./creature");
 team.name = require("./name");
 
-},{"./creature":184,"./name":186}],186:[function(require,module,exports){
+},{"./creature":178,"./name":180}],180:[function(require,module,exports){
 module["exports"] = [
   "#{Address.state} #{creature}"
 ];
 
-},{}],187:[function(require,module,exports){
+},{}],181:[function(require,module,exports){
 
 var Lorem = function (faker) {
   var self = this;
@@ -33886,7 +32273,7 @@ var Lorem = function (faker) {
 
 module["exports"] = Lorem;
 
-},{}],188:[function(require,module,exports){
+},{}],182:[function(require,module,exports){
 function Name (faker) {
 
   this.firstName = function (gender) {
@@ -33984,7 +32371,7 @@ function Name (faker) {
 }
 
 module['exports'] = Name;
-},{}],189:[function(require,module,exports){
+},{}],183:[function(require,module,exports){
 var Phone = function (faker) {
   var self = this;
 
@@ -34008,7 +32395,7 @@ var Phone = function (faker) {
 };
 
 module['exports'] = Phone;
-},{}],190:[function(require,module,exports){
+},{}],184:[function(require,module,exports){
 var mersenne = require('../vendor/mersenne');
 
 function Random (faker, seed) {
@@ -34096,14 +32483,14 @@ module['exports'] = Random;
 
 // module.exports = random;
 
-},{"../vendor/mersenne":192}],191:[function(require,module,exports){
+},{"../vendor/mersenne":186}],185:[function(require,module,exports){
 var Faker = require('../lib');
 var faker = new Faker({ locale: 'en', localeFallback: 'en' });
 faker.locales['en'] = require('../lib/locales/en');
 faker.locales['en'] = require('../lib/locales/en');
 module['exports'] = faker;
 
-},{"../lib":100,"../lib/locales/en":167}],192:[function(require,module,exports){
+},{"../lib":94,"../lib/locales/en":161}],186:[function(require,module,exports){
 // this program is a JavaScript version of Mersenne Twister, with concealment and encapsulation in class,
 // an almost straight conversion from the original program, mt19937ar.c,
 // translated by y. okada on July 17, 2006.
@@ -34391,7 +32778,7 @@ exports.seed_array = function(A) {
     gen.init_by_array(A);
 }
 
-},{}],193:[function(require,module,exports){
+},{}],187:[function(require,module,exports){
 /*
  * password-generator
  * Copyright(c) 2011-2013 Bermi Ferrer <bermi@bermilabs.com>
@@ -34457,7 +32844,7 @@ exports.seed_array = function(A) {
 
   // Establish the root object, `window` in the browser, or `global` on the server.
 }(this));
-},{}],194:[function(require,module,exports){
+},{}],188:[function(require,module,exports){
 /*
 
 Copyright (c) 2012-2014 Jeffrey Mealo
@@ -34668,7 +33055,7 @@ exports.generate = function generate() {
     return browser[random[0]](random[1]);
 };
 
-},{}],195:[function(require,module,exports){
+},{}],189:[function(require,module,exports){
 var ret = require('ret');
 var DRange = require('discontinuous-range');
 var types = ret.types;
@@ -34915,7 +33302,7 @@ function gen(token, groups) {
 
 
 
-},{"discontinuous-range":196,"ret":197}],196:[function(require,module,exports){
+},{"discontinuous-range":190,"ret":191}],190:[function(require,module,exports){
 //protected helper class
 function _SubRange(low, high) {
     this.low = low;
@@ -35061,7 +33448,7 @@ DiscontinuousRange.prototype.clone = function () {
 
 module.exports = DiscontinuousRange;
 
-},{}],197:[function(require,module,exports){
+},{}],191:[function(require,module,exports){
 var util      = require('./util');
 var types     = require('./types');
 var sets      = require('./sets');
@@ -35341,7 +33728,7 @@ module.exports = function(regexpStr) {
 
 module.exports.types = types;
 
-},{"./positions":198,"./sets":199,"./types":200,"./util":201}],198:[function(require,module,exports){
+},{"./positions":192,"./sets":193,"./types":194,"./util":195}],192:[function(require,module,exports){
 var types = require('./types');
 
 exports.wordBoundary = function() {
@@ -35360,7 +33747,7 @@ exports.end = function() {
   return { type: types.POSITION, value: '$' };
 };
 
-},{"./types":200}],199:[function(require,module,exports){
+},{"./types":194}],193:[function(require,module,exports){
 var types = require('./types');
 
 var INTS = function() {
@@ -35444,7 +33831,7 @@ exports.anyChar = function() {
   return { type: types.SET, set: NOTANYCHAR(), not: true };
 };
 
-},{"./types":200}],200:[function(require,module,exports){
+},{"./types":194}],194:[function(require,module,exports){
 module.exports = {
     ROOT       : 0
   , GROUP      : 1
@@ -35456,7 +33843,7 @@ module.exports = {
   , CHAR       : 7
 };
 
-},{}],201:[function(require,module,exports){
+},{}],195:[function(require,module,exports){
 var types = require('./types');
 var sets  = require('./sets');
 
@@ -35564,7 +33951,7 @@ exports.error = function(regexp, msg) {
   throw new SyntaxError('Invalid regular expression: /' + regexp + '/: ' + msg);
 };
 
-},{"./sets":199,"./types":200}],202:[function(require,module,exports){
+},{"./sets":193,"./types":194}],196:[function(require,module,exports){
 (function (global){
 /**
  * @license
@@ -47920,7 +46307,7 @@ exports.error = function(regexp, msg) {
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{}],203:[function(require,module,exports){
+},{}],197:[function(require,module,exports){
 (function (global){
 /*! Native Promise Only
     v0.8.0-a (c) Kyle Simpson
@@ -47930,19 +46317,1637 @@ exports.error = function(regexp, msg) {
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
+},{}],198:[function(require,module,exports){
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015 Jeremy Whitlock
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+
+'use strict';
+
+var supportedLoaders = {
+  file: require('./lib/loaders/file'),
+  http: require('./lib/loaders/http'),
+  https: require('./lib/loaders/http')
+};
+var defaultLoader = typeof window === 'undefined' ? supportedLoaders.file : supportedLoaders.http;
+
+// Load promises polyfill if necessary
+if (typeof Promise === 'undefined') {
+  require('native-promise-only');
+}
+
+/**
+ * Error-first callback.
+ *
+ * @param {error} [err] - The error if there is a problem
+ * @param {string} [result] - The result of the function
+ *
+ * @callback resultCallback
+ */
+
+/**
+ * Callback used to provide access to altering a remote request prior to the request being made.
+ *
+ * @param {object} req - The Superagent request object
+ * @param {string} location - The location being retrieved
+ *
+ * @callback prepareRequestCallback
+ */
+
+/**
+ * Returns the loader for the given location.
+ *
+ * @param {string} location - The location to load
+ *
+ * @returns {object} The loader to use
+ */
+function getLoader (location) {
+  return supportedLoaders[location.split(':')[0]] || defaultLoader;
+}
+
+/**
+ * Loads a document at the provided location and returns a JavaScript object representation.
+ *
+ * @param {object} location - The location to the document
+ * @param {object} [options] - The options
+ * @param {resultCallback} done - The result callback
+ *
+ * @returns {Promise} Always returns a promise even if there is a callback provided
+ *
+ * @example
+ * // Example using callbacks
+ *
+ * PathLoader
+ *   .load('./package.json', function (err, document) {
+ *     if (err) {
+ *       console.error(err.stack);
+ *     } else {
+ *       try {
+ *         document = JSON.parse(document)
+ *         console.log(document.name + ' (' + document.version + '): ' + document.description);
+ *       } catch (err2) {
+ *         callback(err2);
+ *       }
+ *     });
+ *
+ * @example
+ * // Example using Promises
+ *
+ * PathLoader
+ *   .load('./package.json')
+ *   .then(JSON.parse)
+ *   .then(function (document) {
+ *     console.log(document.name + ' (' + document.version + '): ' + document.description);
+ *   }, function (err) {
+ *     console.error(err.stack);
+ *   });
+ *
+ * @example
+ * // Example using options.prepareRequest to provide authentication details for a remotely secure URL
+ *
+ * PathLoader
+ *   .load('https://api.github.com/repos/whitlockjc/path-loader', {
+ *     prepareRequest: function (req) {
+ *       req.auth('my-username', 'my-password')
+ *     }
+ *   })
+ *   .then(JSON.parse)
+ *   .then(function (document) {
+ *     console.log(document.full_name + ': ' + document.description);
+ *   }, function (err) {
+ *     console.error(err.stack);
+ *   });
+ *
+ * @example
+ * // Example using options.processContent to load a YAML file
+ *
+ * PathLoader
+ *   .load('/Users/not-you/projects/path-loader/.travis.yml')
+ *   .then(YAML.safeLoad)
+ *   .then(function (document) {
+ *     console.log('path-loader uses the', document.language, 'language.');
+ *   }, function (err) {
+ *     console.error(err.stack);
+ *   });
+ */
+module.exports.load = function (location, options, done) {
+  var allTasks = Promise.resolve();
+
+  if (arguments.length === 2 && typeof options === 'function') {
+    done = options;
+    options = undefined;
+  }
+
+  // Validate arguments
+  allTasks = allTasks.then(function () {
+    if (typeof location === 'undefined') {
+      throw new TypeError('location is required');
+    } else if (typeof location !== 'string') {
+      throw new TypeError('location must be a string');
+    }
+
+    if (typeof options !== 'undefined') {
+      if (typeof options !== 'object') {
+        throw new TypeError('options must be an object');
+      }
+    } else {
+      options = {};
+    }
+
+    if (typeof done !== 'undefined' && typeof done !== 'function') {
+      throw new TypeError('callback must be a function');
+    }
+  });
+
+  // Load the document from the provided location and process it
+  allTasks = allTasks.then(function () {
+    return new Promise(function (resolve, reject) {
+      var loader = getLoader(location);
+
+      loader.load(location, options, function (err, document) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(document);
+        }
+      });
+    });
+  });
+
+  // Use the callback if provided and it is a function
+  if (typeof done === 'function') {
+    allTasks = allTasks
+      .then(function (document) {
+        done(undefined, document);
+      }, function (err) {
+        done(err);
+      });
+  }
+
+  return allTasks;
+};
+
+},{"./lib/loaders/file":199,"./lib/loaders/http":200,"native-promise-only":197}],199:[function(require,module,exports){
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015 Jeremy Whitlock
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+
+'use strict';
+
+/**
+ * Loads a file from the filesystem.
+ *
+ * @param {string} location - The filesystem location (If relative, location is relative to process.cwd()).
+ * @param {object} options - The loader options (Unused)
+ * @param {function} callback - The error-first callback
+ */
+module.exports.load = function (location, options, callback) {
+  callback(new TypeError('The \'file\' scheme is not supported in the browser'));
+};
+
+},{}],200:[function(require,module,exports){
+/*eslint-env node, browser */
+
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015 Jeremy Whitlock
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+
+'use strict';
+
+var request = require('superagent');
+
+var supportedHttpMethods = ['delete', 'get', 'head', 'patch', 'post', 'put'];
+
+/**
+ * Loads a file from an http or https URL.
+ *
+ * @param {string} location - The document URL (If relative, location is relative to window.location).
+ * @param {object} options - The loader options
+ * @param {string} [options.method=get] - The HTTP method to use for the request
+ * @param {prepareRequestCallback} [options.prepareRequest] - The callback used to prepare a request
+ * @param {function} callback - The error-first callback
+ */
+module.exports.load = function (location, options, callback) {
+  var realUrl = location.split('#')[0];
+  var realMethod = options.method ? options.method.toLowerCase() : 'get';
+  var err;
+  var realRequest;
+
+  if (typeof options.prepareRequest !== 'undefined' && typeof options.prepareRequest !== 'function') {
+    err = new TypeError('options.prepareRequest must be a function');
+  } else if (typeof options.method !== 'undefined') {
+    if (typeof options.method !== 'string') {
+      err = new TypeError('options.method must be a string');
+    } else if (supportedHttpMethods.indexOf(options.method) === -1) {
+      err = new TypeError('options.method must be one of the following: ' +
+        supportedHttpMethods.slice(0, supportedHttpMethods.length - 1).join(', ') + ' or ' +
+        supportedHttpMethods[supportedHttpMethods.length - 1]);
+    }
+  }
+
+  if (!err) {
+    realRequest = request[realMethod === 'delete' ? 'del' : realMethod](realUrl);
+
+    if (options.prepareRequest) {
+      options.prepareRequest(realRequest);
+    }
+
+    // buffer() is only available in Node.js
+    if (typeof realRequest.buffer === 'function') {
+      realRequest.buffer(true);
+    }
+
+    realRequest
+      .end(function (err2, res) {
+        callback(err2, res ? res.text : res);
+      });
+  } else {
+    callback(err);
+  }
+};
+
+},{"superagent":201}],201:[function(require,module,exports){
+/**
+ * Module dependencies.
+ */
+
+var Emitter = require('emitter');
+var reduce = require('reduce');
+
+/**
+ * Root reference for iframes.
+ */
+
+var root;
+if (typeof window !== 'undefined') { // Browser window
+  root = window;
+} else if (typeof self !== 'undefined') { // Web Worker
+  root = self;
+} else { // Other environments
+  root = this;
+}
+
+/**
+ * Noop.
+ */
+
+function noop(){};
+
+/**
+ * Check if `obj` is a host object,
+ * we don't want to serialize these :)
+ *
+ * TODO: future proof, move to compoent land
+ *
+ * @param {Object} obj
+ * @return {Boolean}
+ * @api private
+ */
+
+function isHost(obj) {
+  var str = {}.toString.call(obj);
+
+  switch (str) {
+    case '[object File]':
+    case '[object Blob]':
+    case '[object FormData]':
+      return true;
+    default:
+      return false;
+  }
+}
+
+/**
+ * Determine XHR.
+ */
+
+request.getXHR = function () {
+  if (root.XMLHttpRequest
+      && (!root.location || 'file:' != root.location.protocol
+          || !root.ActiveXObject)) {
+    return new XMLHttpRequest;
+  } else {
+    try { return new ActiveXObject('Microsoft.XMLHTTP'); } catch(e) {}
+    try { return new ActiveXObject('Msxml2.XMLHTTP.6.0'); } catch(e) {}
+    try { return new ActiveXObject('Msxml2.XMLHTTP.3.0'); } catch(e) {}
+    try { return new ActiveXObject('Msxml2.XMLHTTP'); } catch(e) {}
+  }
+  return false;
+};
+
+/**
+ * Removes leading and trailing whitespace, added to support IE.
+ *
+ * @param {String} s
+ * @return {String}
+ * @api private
+ */
+
+var trim = ''.trim
+  ? function(s) { return s.trim(); }
+  : function(s) { return s.replace(/(^\s*|\s*$)/g, ''); };
+
+/**
+ * Check if `obj` is an object.
+ *
+ * @param {Object} obj
+ * @return {Boolean}
+ * @api private
+ */
+
+function isObject(obj) {
+  return obj === Object(obj);
+}
+
+/**
+ * Serialize the given `obj`.
+ *
+ * @param {Object} obj
+ * @return {String}
+ * @api private
+ */
+
+function serialize(obj) {
+  if (!isObject(obj)) return obj;
+  var pairs = [];
+  for (var key in obj) {
+    if (null != obj[key]) {
+      pairs.push(encodeURIComponent(key)
+        + '=' + encodeURIComponent(obj[key]));
+    }
+  }
+  return pairs.join('&');
+}
+
+/**
+ * Expose serialization method.
+ */
+
+ request.serializeObject = serialize;
+
+ /**
+  * Parse the given x-www-form-urlencoded `str`.
+  *
+  * @param {String} str
+  * @return {Object}
+  * @api private
+  */
+
+function parseString(str) {
+  var obj = {};
+  var pairs = str.split('&');
+  var parts;
+  var pair;
+
+  for (var i = 0, len = pairs.length; i < len; ++i) {
+    pair = pairs[i];
+    parts = pair.split('=');
+    obj[decodeURIComponent(parts[0])] = decodeURIComponent(parts[1]);
+  }
+
+  return obj;
+}
+
+/**
+ * Expose parser.
+ */
+
+request.parseString = parseString;
+
+/**
+ * Default MIME type map.
+ *
+ *     superagent.types.xml = 'application/xml';
+ *
+ */
+
+request.types = {
+  html: 'text/html',
+  json: 'application/json',
+  xml: 'application/xml',
+  urlencoded: 'application/x-www-form-urlencoded',
+  'form': 'application/x-www-form-urlencoded',
+  'form-data': 'application/x-www-form-urlencoded'
+};
+
+/**
+ * Default serialization map.
+ *
+ *     superagent.serialize['application/xml'] = function(obj){
+ *       return 'generated xml here';
+ *     };
+ *
+ */
+
+ request.serialize = {
+   'application/x-www-form-urlencoded': serialize,
+   'application/json': JSON.stringify
+ };
+
+ /**
+  * Default parsers.
+  *
+  *     superagent.parse['application/xml'] = function(str){
+  *       return { object parsed from str };
+  *     };
+  *
+  */
+
+request.parse = {
+  'application/x-www-form-urlencoded': parseString,
+  'application/json': JSON.parse
+};
+
+/**
+ * Parse the given header `str` into
+ * an object containing the mapped fields.
+ *
+ * @param {String} str
+ * @return {Object}
+ * @api private
+ */
+
+function parseHeader(str) {
+  var lines = str.split(/\r?\n/);
+  var fields = {};
+  var index;
+  var line;
+  var field;
+  var val;
+
+  lines.pop(); // trailing CRLF
+
+  for (var i = 0, len = lines.length; i < len; ++i) {
+    line = lines[i];
+    index = line.indexOf(':');
+    field = line.slice(0, index).toLowerCase();
+    val = trim(line.slice(index + 1));
+    fields[field] = val;
+  }
+
+  return fields;
+}
+
+/**
+ * Return the mime type for the given `str`.
+ *
+ * @param {String} str
+ * @return {String}
+ * @api private
+ */
+
+function type(str){
+  return str.split(/ *; */).shift();
+};
+
+/**
+ * Return header field parameters.
+ *
+ * @param {String} str
+ * @return {Object}
+ * @api private
+ */
+
+function params(str){
+  return reduce(str.split(/ *; */), function(obj, str){
+    var parts = str.split(/ *= */)
+      , key = parts.shift()
+      , val = parts.shift();
+
+    if (key && val) obj[key] = val;
+    return obj;
+  }, {});
+};
+
+/**
+ * Initialize a new `Response` with the given `xhr`.
+ *
+ *  - set flags (.ok, .error, etc)
+ *  - parse header
+ *
+ * Examples:
+ *
+ *  Aliasing `superagent` as `request` is nice:
+ *
+ *      request = superagent;
+ *
+ *  We can use the promise-like API, or pass callbacks:
+ *
+ *      request.get('/').end(function(res){});
+ *      request.get('/', function(res){});
+ *
+ *  Sending data can be chained:
+ *
+ *      request
+ *        .post('/user')
+ *        .send({ name: 'tj' })
+ *        .end(function(res){});
+ *
+ *  Or passed to `.send()`:
+ *
+ *      request
+ *        .post('/user')
+ *        .send({ name: 'tj' }, function(res){});
+ *
+ *  Or passed to `.post()`:
+ *
+ *      request
+ *        .post('/user', { name: 'tj' })
+ *        .end(function(res){});
+ *
+ * Or further reduced to a single call for simple cases:
+ *
+ *      request
+ *        .post('/user', { name: 'tj' }, function(res){});
+ *
+ * @param {XMLHTTPRequest} xhr
+ * @param {Object} options
+ * @api private
+ */
+
+function Response(req, options) {
+  options = options || {};
+  this.req = req;
+  this.xhr = this.req.xhr;
+  // responseText is accessible only if responseType is '' or 'text' and on older browsers
+  this.text = ((this.req.method !='HEAD' && (this.xhr.responseType === '' || this.xhr.responseType === 'text')) || typeof this.xhr.responseType === 'undefined')
+     ? this.xhr.responseText
+     : null;
+  this.statusText = this.req.xhr.statusText;
+  this.setStatusProperties(this.xhr.status);
+  this.header = this.headers = parseHeader(this.xhr.getAllResponseHeaders());
+  // getAllResponseHeaders sometimes falsely returns "" for CORS requests, but
+  // getResponseHeader still works. so we get content-type even if getting
+  // other headers fails.
+  this.header['content-type'] = this.xhr.getResponseHeader('content-type');
+  this.setHeaderProperties(this.header);
+  this.body = this.req.method != 'HEAD'
+    ? this.parseBody(this.text ? this.text : this.xhr.response)
+    : null;
+}
+
+/**
+ * Get case-insensitive `field` value.
+ *
+ * @param {String} field
+ * @return {String}
+ * @api public
+ */
+
+Response.prototype.get = function(field){
+  return this.header[field.toLowerCase()];
+};
+
+/**
+ * Set header related properties:
+ *
+ *   - `.type` the content type without params
+ *
+ * A response of "Content-Type: text/plain; charset=utf-8"
+ * will provide you with a `.type` of "text/plain".
+ *
+ * @param {Object} header
+ * @api private
+ */
+
+Response.prototype.setHeaderProperties = function(header){
+  // content-type
+  var ct = this.header['content-type'] || '';
+  this.type = type(ct);
+
+  // params
+  var obj = params(ct);
+  for (var key in obj) this[key] = obj[key];
+};
+
+/**
+ * Parse the given body `str`.
+ *
+ * Used for auto-parsing of bodies. Parsers
+ * are defined on the `superagent.parse` object.
+ *
+ * @param {String} str
+ * @return {Mixed}
+ * @api private
+ */
+
+Response.prototype.parseBody = function(str){
+  var parse = request.parse[this.type];
+  return parse && str && (str.length || str instanceof Object)
+    ? parse(str)
+    : null;
+};
+
+/**
+ * Set flags such as `.ok` based on `status`.
+ *
+ * For example a 2xx response will give you a `.ok` of __true__
+ * whereas 5xx will be __false__ and `.error` will be __true__. The
+ * `.clientError` and `.serverError` are also available to be more
+ * specific, and `.statusType` is the class of error ranging from 1..5
+ * sometimes useful for mapping respond colors etc.
+ *
+ * "sugar" properties are also defined for common cases. Currently providing:
+ *
+ *   - .noContent
+ *   - .badRequest
+ *   - .unauthorized
+ *   - .notAcceptable
+ *   - .notFound
+ *
+ * @param {Number} status
+ * @api private
+ */
+
+Response.prototype.setStatusProperties = function(status){
+  // handle IE9 bug: http://stackoverflow.com/questions/10046972/msie-returns-status-code-of-1223-for-ajax-request
+  if (status === 1223) {
+    status = 204;
+  }
+
+  var type = status / 100 | 0;
+
+  // status / class
+  this.status = status;
+  this.statusType = type;
+
+  // basics
+  this.info = 1 == type;
+  this.ok = 2 == type;
+  this.clientError = 4 == type;
+  this.serverError = 5 == type;
+  this.error = (4 == type || 5 == type)
+    ? this.toError()
+    : false;
+
+  // sugar
+  this.accepted = 202 == status;
+  this.noContent = 204 == status;
+  this.badRequest = 400 == status;
+  this.unauthorized = 401 == status;
+  this.notAcceptable = 406 == status;
+  this.notFound = 404 == status;
+  this.forbidden = 403 == status;
+};
+
+/**
+ * Return an `Error` representative of this response.
+ *
+ * @return {Error}
+ * @api public
+ */
+
+Response.prototype.toError = function(){
+  var req = this.req;
+  var method = req.method;
+  var url = req.url;
+
+  var msg = 'cannot ' + method + ' ' + url + ' (' + this.status + ')';
+  var err = new Error(msg);
+  err.status = this.status;
+  err.method = method;
+  err.url = url;
+
+  return err;
+};
+
+/**
+ * Expose `Response`.
+ */
+
+request.Response = Response;
+
+/**
+ * Initialize a new `Request` with the given `method` and `url`.
+ *
+ * @param {String} method
+ * @param {String} url
+ * @api public
+ */
+
+function Request(method, url) {
+  var self = this;
+  Emitter.call(this);
+  this._query = this._query || [];
+  this.method = method;
+  this.url = url;
+  this.header = {};
+  this._header = {};
+  this.on('end', function(){
+    var err = null;
+    var res = null;
+
+    try {
+      res = new Response(self);
+    } catch(e) {
+      err = new Error('Parser is unable to parse the response');
+      err.parse = true;
+      err.original = e;
+      return self.callback(err);
+    }
+
+    self.emit('response', res);
+
+    if (err) {
+      return self.callback(err, res);
+    }
+
+    if (res.status >= 200 && res.status < 300) {
+      return self.callback(err, res);
+    }
+
+    var new_err = new Error(res.statusText || 'Unsuccessful HTTP response');
+    new_err.original = err;
+    new_err.response = res;
+    new_err.status = res.status;
+
+    self.callback(err || new_err, res);
+  });
+}
+
+/**
+ * Mixin `Emitter`.
+ */
+
+Emitter(Request.prototype);
+
+/**
+ * Allow for extension
+ */
+
+Request.prototype.use = function(fn) {
+  fn(this);
+  return this;
+}
+
+/**
+ * Set timeout to `ms`.
+ *
+ * @param {Number} ms
+ * @return {Request} for chaining
+ * @api public
+ */
+
+Request.prototype.timeout = function(ms){
+  this._timeout = ms;
+  return this;
+};
+
+/**
+ * Clear previous timeout.
+ *
+ * @return {Request} for chaining
+ * @api public
+ */
+
+Request.prototype.clearTimeout = function(){
+  this._timeout = 0;
+  clearTimeout(this._timer);
+  return this;
+};
+
+/**
+ * Abort the request, and clear potential timeout.
+ *
+ * @return {Request}
+ * @api public
+ */
+
+Request.prototype.abort = function(){
+  if (this.aborted) return;
+  this.aborted = true;
+  this.xhr.abort();
+  this.clearTimeout();
+  this.emit('abort');
+  return this;
+};
+
+/**
+ * Set header `field` to `val`, or multiple fields with one object.
+ *
+ * Examples:
+ *
+ *      req.get('/')
+ *        .set('Accept', 'application/json')
+ *        .set('X-API-Key', 'foobar')
+ *        .end(callback);
+ *
+ *      req.get('/')
+ *        .set({ Accept: 'application/json', 'X-API-Key': 'foobar' })
+ *        .end(callback);
+ *
+ * @param {String|Object} field
+ * @param {String} val
+ * @return {Request} for chaining
+ * @api public
+ */
+
+Request.prototype.set = function(field, val){
+  if (isObject(field)) {
+    for (var key in field) {
+      this.set(key, field[key]);
+    }
+    return this;
+  }
+  this._header[field.toLowerCase()] = val;
+  this.header[field] = val;
+  return this;
+};
+
+/**
+ * Remove header `field`.
+ *
+ * Example:
+ *
+ *      req.get('/')
+ *        .unset('User-Agent')
+ *        .end(callback);
+ *
+ * @param {String} field
+ * @return {Request} for chaining
+ * @api public
+ */
+
+Request.prototype.unset = function(field){
+  delete this._header[field.toLowerCase()];
+  delete this.header[field];
+  return this;
+};
+
+/**
+ * Get case-insensitive header `field` value.
+ *
+ * @param {String} field
+ * @return {String}
+ * @api private
+ */
+
+Request.prototype.getHeader = function(field){
+  return this._header[field.toLowerCase()];
+};
+
+/**
+ * Set Content-Type to `type`, mapping values from `request.types`.
+ *
+ * Examples:
+ *
+ *      superagent.types.xml = 'application/xml';
+ *
+ *      request.post('/')
+ *        .type('xml')
+ *        .send(xmlstring)
+ *        .end(callback);
+ *
+ *      request.post('/')
+ *        .type('application/xml')
+ *        .send(xmlstring)
+ *        .end(callback);
+ *
+ * @param {String} type
+ * @return {Request} for chaining
+ * @api public
+ */
+
+Request.prototype.type = function(type){
+  this.set('Content-Type', request.types[type] || type);
+  return this;
+};
+
+/**
+ * Set Accept to `type`, mapping values from `request.types`.
+ *
+ * Examples:
+ *
+ *      superagent.types.json = 'application/json';
+ *
+ *      request.get('/agent')
+ *        .accept('json')
+ *        .end(callback);
+ *
+ *      request.get('/agent')
+ *        .accept('application/json')
+ *        .end(callback);
+ *
+ * @param {String} accept
+ * @return {Request} for chaining
+ * @api public
+ */
+
+Request.prototype.accept = function(type){
+  this.set('Accept', request.types[type] || type);
+  return this;
+};
+
+/**
+ * Set Authorization field value with `user` and `pass`.
+ *
+ * @param {String} user
+ * @param {String} pass
+ * @return {Request} for chaining
+ * @api public
+ */
+
+Request.prototype.auth = function(user, pass){
+  var str = btoa(user + ':' + pass);
+  this.set('Authorization', 'Basic ' + str);
+  return this;
+};
+
+/**
+* Add query-string `val`.
+*
+* Examples:
+*
+*   request.get('/shoes')
+*     .query('size=10')
+*     .query({ color: 'blue' })
+*
+* @param {Object|String} val
+* @return {Request} for chaining
+* @api public
+*/
+
+Request.prototype.query = function(val){
+  if ('string' != typeof val) val = serialize(val);
+  if (val) this._query.push(val);
+  return this;
+};
+
+/**
+ * Write the field `name` and `val` for "multipart/form-data"
+ * request bodies.
+ *
+ * ``` js
+ * request.post('/upload')
+ *   .field('foo', 'bar')
+ *   .end(callback);
+ * ```
+ *
+ * @param {String} name
+ * @param {String|Blob|File} val
+ * @return {Request} for chaining
+ * @api public
+ */
+
+Request.prototype.field = function(name, val){
+  if (!this._formData) this._formData = new root.FormData();
+  this._formData.append(name, val);
+  return this;
+};
+
+/**
+ * Queue the given `file` as an attachment to the specified `field`,
+ * with optional `filename`.
+ *
+ * ``` js
+ * request.post('/upload')
+ *   .attach(new Blob(['<a id="a"><b id="b">hey!</b></a>'], { type: "text/html"}))
+ *   .end(callback);
+ * ```
+ *
+ * @param {String} field
+ * @param {Blob|File} file
+ * @param {String} filename
+ * @return {Request} for chaining
+ * @api public
+ */
+
+Request.prototype.attach = function(field, file, filename){
+  if (!this._formData) this._formData = new root.FormData();
+  this._formData.append(field, file, filename);
+  return this;
+};
+
+/**
+ * Send `data`, defaulting the `.type()` to "json" when
+ * an object is given.
+ *
+ * Examples:
+ *
+ *       // querystring
+ *       request.get('/search')
+ *         .end(callback)
+ *
+ *       // multiple data "writes"
+ *       request.get('/search')
+ *         .send({ search: 'query' })
+ *         .send({ range: '1..5' })
+ *         .send({ order: 'desc' })
+ *         .end(callback)
+ *
+ *       // manual json
+ *       request.post('/user')
+ *         .type('json')
+ *         .send('{"name":"tj"})
+ *         .end(callback)
+ *
+ *       // auto json
+ *       request.post('/user')
+ *         .send({ name: 'tj' })
+ *         .end(callback)
+ *
+ *       // manual x-www-form-urlencoded
+ *       request.post('/user')
+ *         .type('form')
+ *         .send('name=tj')
+ *         .end(callback)
+ *
+ *       // auto x-www-form-urlencoded
+ *       request.post('/user')
+ *         .type('form')
+ *         .send({ name: 'tj' })
+ *         .end(callback)
+ *
+ *       // defaults to x-www-form-urlencoded
+  *      request.post('/user')
+  *        .send('name=tobi')
+  *        .send('species=ferret')
+  *        .end(callback)
+ *
+ * @param {String|Object} data
+ * @return {Request} for chaining
+ * @api public
+ */
+
+Request.prototype.send = function(data){
+  var obj = isObject(data);
+  var type = this.getHeader('Content-Type');
+
+  // merge
+  if (obj && isObject(this._data)) {
+    for (var key in data) {
+      this._data[key] = data[key];
+    }
+  } else if ('string' == typeof data) {
+    if (!type) this.type('form');
+    type = this.getHeader('Content-Type');
+    if ('application/x-www-form-urlencoded' == type) {
+      this._data = this._data
+        ? this._data + '&' + data
+        : data;
+    } else {
+      this._data = (this._data || '') + data;
+    }
+  } else {
+    this._data = data;
+  }
+
+  if (!obj || isHost(data)) return this;
+  if (!type) this.type('json');
+  return this;
+};
+
+/**
+ * Invoke the callback with `err` and `res`
+ * and handle arity check.
+ *
+ * @param {Error} err
+ * @param {Response} res
+ * @api private
+ */
+
+Request.prototype.callback = function(err, res){
+  var fn = this._callback;
+  this.clearTimeout();
+  fn(err, res);
+};
+
+/**
+ * Invoke callback with x-domain error.
+ *
+ * @api private
+ */
+
+Request.prototype.crossDomainError = function(){
+  var err = new Error('Origin is not allowed by Access-Control-Allow-Origin');
+  err.crossDomain = true;
+  this.callback(err);
+};
+
+/**
+ * Invoke callback with timeout error.
+ *
+ * @api private
+ */
+
+Request.prototype.timeoutError = function(){
+  var timeout = this._timeout;
+  var err = new Error('timeout of ' + timeout + 'ms exceeded');
+  err.timeout = timeout;
+  this.callback(err);
+};
+
+/**
+ * Enable transmission of cookies with x-domain requests.
+ *
+ * Note that for this to work the origin must not be
+ * using "Access-Control-Allow-Origin" with a wildcard,
+ * and also must set "Access-Control-Allow-Credentials"
+ * to "true".
+ *
+ * @api public
+ */
+
+Request.prototype.withCredentials = function(){
+  this._withCredentials = true;
+  return this;
+};
+
+/**
+ * Initiate request, invoking callback `fn(res)`
+ * with an instanceof `Response`.
+ *
+ * @param {Function} fn
+ * @return {Request} for chaining
+ * @api public
+ */
+
+Request.prototype.end = function(fn){
+  var self = this;
+  var xhr = this.xhr = request.getXHR();
+  var query = this._query.join('&');
+  var timeout = this._timeout;
+  var data = this._formData || this._data;
+
+  // store callback
+  this._callback = fn || noop;
+
+  // state change
+  xhr.onreadystatechange = function(){
+    if (4 != xhr.readyState) return;
+
+    // In IE9, reads to any property (e.g. status) off of an aborted XHR will
+    // result in the error "Could not complete the operation due to error c00c023f"
+    var status;
+    try { status = xhr.status } catch(e) { status = 0; }
+
+    if (0 == status) {
+      if (self.timedout) return self.timeoutError();
+      if (self.aborted) return;
+      return self.crossDomainError();
+    }
+    self.emit('end');
+  };
+
+  // progress
+  var handleProgress = function(e){
+    if (e.total > 0) {
+      e.percent = e.loaded / e.total * 100;
+    }
+    self.emit('progress', e);
+  };
+  if (this.hasListeners('progress')) {
+    xhr.onprogress = handleProgress;
+  }
+  try {
+    if (xhr.upload && this.hasListeners('progress')) {
+      xhr.upload.onprogress = handleProgress;
+    }
+  } catch(e) {
+    // Accessing xhr.upload fails in IE from a web worker, so just pretend it doesn't exist.
+    // Reported here:
+    // https://connect.microsoft.com/IE/feedback/details/837245/xmlhttprequest-upload-throws-invalid-argument-when-used-from-web-worker-context
+  }
+
+  // timeout
+  if (timeout && !this._timer) {
+    this._timer = setTimeout(function(){
+      self.timedout = true;
+      self.abort();
+    }, timeout);
+  }
+
+  // querystring
+  if (query) {
+    query = request.serializeObject(query);
+    this.url += ~this.url.indexOf('?')
+      ? '&' + query
+      : '?' + query;
+  }
+
+  // initiate request
+  xhr.open(this.method, this.url, true);
+
+  // CORS
+  if (this._withCredentials) xhr.withCredentials = true;
+
+  // body
+  if ('GET' != this.method && 'HEAD' != this.method && 'string' != typeof data && !isHost(data)) {
+    // serialize stuff
+    var serialize = request.serialize[this.getHeader('Content-Type')];
+    if (serialize) data = serialize(data);
+  }
+
+  // set header fields
+  for (var field in this.header) {
+    if (null == this.header[field]) continue;
+    xhr.setRequestHeader(field, this.header[field]);
+  }
+
+  // send stuff
+  this.emit('request', this);
+  xhr.send(data);
+  return this;
+};
+
+/**
+ * Expose `Request`.
+ */
+
+request.Request = Request;
+
+/**
+ * Issue a request:
+ *
+ * Examples:
+ *
+ *    request('GET', '/users').end(callback)
+ *    request('/users').end(callback)
+ *    request('/users', callback)
+ *
+ * @param {String} method
+ * @param {String|Function} url or callback
+ * @return {Request}
+ * @api public
+ */
+
+function request(method, url) {
+  // callback
+  if ('function' == typeof url) {
+    return new Request('GET', method).end(url);
+  }
+
+  // url first
+  if (1 == arguments.length) {
+    return new Request('GET', method);
+  }
+
+  return new Request(method, url);
+}
+
+/**
+ * GET `url` with optional callback `fn(res)`.
+ *
+ * @param {String} url
+ * @param {Mixed|Function} data or fn
+ * @param {Function} fn
+ * @return {Request}
+ * @api public
+ */
+
+request.get = function(url, data, fn){
+  var req = request('GET', url);
+  if ('function' == typeof data) fn = data, data = null;
+  if (data) req.query(data);
+  if (fn) req.end(fn);
+  return req;
+};
+
+/**
+ * HEAD `url` with optional callback `fn(res)`.
+ *
+ * @param {String} url
+ * @param {Mixed|Function} data or fn
+ * @param {Function} fn
+ * @return {Request}
+ * @api public
+ */
+
+request.head = function(url, data, fn){
+  var req = request('HEAD', url);
+  if ('function' == typeof data) fn = data, data = null;
+  if (data) req.send(data);
+  if (fn) req.end(fn);
+  return req;
+};
+
+/**
+ * DELETE `url` with optional callback `fn(res)`.
+ *
+ * @param {String} url
+ * @param {Function} fn
+ * @return {Request}
+ * @api public
+ */
+
+request.del = function(url, fn){
+  var req = request('DELETE', url);
+  if (fn) req.end(fn);
+  return req;
+};
+
+/**
+ * PATCH `url` with optional `data` and callback `fn(res)`.
+ *
+ * @param {String} url
+ * @param {Mixed} data
+ * @param {Function} fn
+ * @return {Request}
+ * @api public
+ */
+
+request.patch = function(url, data, fn){
+  var req = request('PATCH', url);
+  if ('function' == typeof data) fn = data, data = null;
+  if (data) req.send(data);
+  if (fn) req.end(fn);
+  return req;
+};
+
+/**
+ * POST `url` with optional `data` and callback `fn(res)`.
+ *
+ * @param {String} url
+ * @param {Mixed} data
+ * @param {Function} fn
+ * @return {Request}
+ * @api public
+ */
+
+request.post = function(url, data, fn){
+  var req = request('POST', url);
+  if ('function' == typeof data) fn = data, data = null;
+  if (data) req.send(data);
+  if (fn) req.end(fn);
+  return req;
+};
+
+/**
+ * PUT `url` with optional `data` and callback `fn(res)`.
+ *
+ * @param {String} url
+ * @param {Mixed|Function} data or fn
+ * @param {Function} fn
+ * @return {Request}
+ * @api public
+ */
+
+request.put = function(url, data, fn){
+  var req = request('PUT', url);
+  if ('function' == typeof data) fn = data, data = null;
+  if (data) req.send(data);
+  if (fn) req.end(fn);
+  return req;
+};
+
+/**
+ * Expose `request`.
+ */
+
+module.exports = request;
+
+},{"emitter":202,"reduce":203}],202:[function(require,module,exports){
+
+/**
+ * Expose `Emitter`.
+ */
+
+module.exports = Emitter;
+
+/**
+ * Initialize a new `Emitter`.
+ *
+ * @api public
+ */
+
+function Emitter(obj) {
+  if (obj) return mixin(obj);
+};
+
+/**
+ * Mixin the emitter properties.
+ *
+ * @param {Object} obj
+ * @return {Object}
+ * @api private
+ */
+
+function mixin(obj) {
+  for (var key in Emitter.prototype) {
+    obj[key] = Emitter.prototype[key];
+  }
+  return obj;
+}
+
+/**
+ * Listen on the given `event` with `fn`.
+ *
+ * @param {String} event
+ * @param {Function} fn
+ * @return {Emitter}
+ * @api public
+ */
+
+Emitter.prototype.on =
+Emitter.prototype.addEventListener = function(event, fn){
+  this._callbacks = this._callbacks || {};
+  (this._callbacks[event] = this._callbacks[event] || [])
+    .push(fn);
+  return this;
+};
+
+/**
+ * Adds an `event` listener that will be invoked a single
+ * time then automatically removed.
+ *
+ * @param {String} event
+ * @param {Function} fn
+ * @return {Emitter}
+ * @api public
+ */
+
+Emitter.prototype.once = function(event, fn){
+  var self = this;
+  this._callbacks = this._callbacks || {};
+
+  function on() {
+    self.off(event, on);
+    fn.apply(this, arguments);
+  }
+
+  on.fn = fn;
+  this.on(event, on);
+  return this;
+};
+
+/**
+ * Remove the given callback for `event` or all
+ * registered callbacks.
+ *
+ * @param {String} event
+ * @param {Function} fn
+ * @return {Emitter}
+ * @api public
+ */
+
+Emitter.prototype.off =
+Emitter.prototype.removeListener =
+Emitter.prototype.removeAllListeners =
+Emitter.prototype.removeEventListener = function(event, fn){
+  this._callbacks = this._callbacks || {};
+
+  // all
+  if (0 == arguments.length) {
+    this._callbacks = {};
+    return this;
+  }
+
+  // specific event
+  var callbacks = this._callbacks[event];
+  if (!callbacks) return this;
+
+  // remove all handlers
+  if (1 == arguments.length) {
+    delete this._callbacks[event];
+    return this;
+  }
+
+  // remove specific handler
+  var cb;
+  for (var i = 0; i < callbacks.length; i++) {
+    cb = callbacks[i];
+    if (cb === fn || cb.fn === fn) {
+      callbacks.splice(i, 1);
+      break;
+    }
+  }
+  return this;
+};
+
+/**
+ * Emit `event` with the given args.
+ *
+ * @param {String} event
+ * @param {Mixed} ...
+ * @return {Emitter}
+ */
+
+Emitter.prototype.emit = function(event){
+  this._callbacks = this._callbacks || {};
+  var args = [].slice.call(arguments, 1)
+    , callbacks = this._callbacks[event];
+
+  if (callbacks) {
+    callbacks = callbacks.slice(0);
+    for (var i = 0, len = callbacks.length; i < len; ++i) {
+      callbacks[i].apply(this, args);
+    }
+  }
+
+  return this;
+};
+
+/**
+ * Return array of callbacks for `event`.
+ *
+ * @param {String} event
+ * @return {Array}
+ * @api public
+ */
+
+Emitter.prototype.listeners = function(event){
+  this._callbacks = this._callbacks || {};
+  return this._callbacks[event] || [];
+};
+
+/**
+ * Check if this emitter has `event` handlers.
+ *
+ * @param {String} event
+ * @return {Boolean}
+ * @api public
+ */
+
+Emitter.prototype.hasListeners = function(event){
+  return !! this.listeners(event).length;
+};
+
+},{}],203:[function(require,module,exports){
+
+/**
+ * Reduce `arr` with `fn`.
+ *
+ * @param {Array} arr
+ * @param {Function} fn
+ * @param {Mixed} initial
+ *
+ * TODO: combatible error handling?
+ */
+
+module.exports = function(arr, fn, initial){
+  var idx = 0;
+  var len = arr.length;
+  var curr = arguments.length == 3
+    ? initial
+    : arr[idx++];
+
+  while (idx < len) {
+    curr = fn.call(null, curr, arr[idx], ++idx, arr);
+  }
+
+  return curr;
+};
 },{}],204:[function(require,module,exports){
-arguments[4][60][0].apply(exports,arguments)
-},{"./lib/loaders/file":205,"./lib/loaders/http":206,"dup":60,"native-promise-only":203}],205:[function(require,module,exports){
-arguments[4][61][0].apply(exports,arguments)
-},{"dup":61}],206:[function(require,module,exports){
-arguments[4][62][0].apply(exports,arguments)
-},{"dup":62,"superagent":207}],207:[function(require,module,exports){
-arguments[4][63][0].apply(exports,arguments)
-},{"dup":63,"emitter":208,"reduce":209}],208:[function(require,module,exports){
-arguments[4][64][0].apply(exports,arguments)
-},{"dup":64}],209:[function(require,module,exports){
-arguments[4][65][0].apply(exports,arguments)
-},{"dup":65}],210:[function(require,module,exports){
 var isarray = require('isarray')
 
 /**
@@ -48330,12 +48335,12 @@ function pathToRegexp (path, keys, options) {
   return stringToRegexp(path, keys, options)
 }
 
-},{"isarray":211}],211:[function(require,module,exports){
+},{"isarray":205}],205:[function(require,module,exports){
 module.exports = Array.isArray || function (arr) {
   return Object.prototype.toString.call(arr) == '[object Array]';
 };
 
-},{}],212:[function(require,module,exports){
+},{}],206:[function(require,module,exports){
 /*!
  * Copyright (c) 2015 Chris O'Hara <cohara87@gmail.com>
  *
@@ -49094,7 +49099,7 @@ module.exports = Array.isArray || function (arr) {
 
 });
 
-},{}],213:[function(require,module,exports){
+},{}],207:[function(require,module,exports){
 "use strict";
 
 module.exports = {
@@ -49155,7 +49160,7 @@ module.exports = {
 
 };
 
-},{}],214:[function(require,module,exports){
+},{}],208:[function(require,module,exports){
 /*jshint maxlen: false*/
 
 var validator = require("validator");
@@ -49286,7 +49291,7 @@ var FormatValidators = {
 
 module.exports = FormatValidators;
 
-},{"validator":212}],215:[function(require,module,exports){
+},{"validator":206}],209:[function(require,module,exports){
 "use strict";
 
 var FormatValidators  = require("./FormatValidators"),
@@ -49812,7 +49817,7 @@ exports.validate = function (report, schema, json) {
 
 };
 
-},{"./FormatValidators":214,"./Report":217,"./Utils":221}],216:[function(require,module,exports){
+},{"./FormatValidators":208,"./Report":211,"./Utils":215}],210:[function(require,module,exports){
 // Number.isFinite polyfill
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.isfinite
 if (typeof Number.isFinite !== "function") {
@@ -49830,7 +49835,7 @@ if (typeof Number.isFinite !== "function") {
     };
 }
 
-},{}],217:[function(require,module,exports){
+},{}],211:[function(require,module,exports){
 (function (process){
 "use strict";
 
@@ -50007,7 +50012,7 @@ module.exports = Report;
 
 }).call(this,require('_process'))
 
-},{"./Errors":213,"./Utils":221,"_process":17}],218:[function(require,module,exports){
+},{"./Errors":207,"./Utils":215,"_process":17}],212:[function(require,module,exports){
 "use strict";
 
 var Report              = require("./Report");
@@ -50162,7 +50167,7 @@ exports.getSchemaByUri = function (report, uri, root) {
 
 exports.getRemotePath = getRemotePath;
 
-},{"./Report":217,"./SchemaCompilation":219,"./SchemaValidation":220,"./Utils":221}],219:[function(require,module,exports){
+},{"./Report":211,"./SchemaCompilation":213,"./SchemaValidation":214,"./Utils":215}],213:[function(require,module,exports){
 "use strict";
 
 var Report      = require("./Report");
@@ -50450,7 +50455,7 @@ exports.compileSchema = function (report, schema) {
 
 };
 
-},{"./Report":217,"./SchemaCache":218,"./Utils":221}],220:[function(require,module,exports){
+},{"./Report":211,"./SchemaCache":212,"./Utils":215}],214:[function(require,module,exports){
 "use strict";
 
 var FormatValidators = require("./FormatValidators"),
@@ -51059,7 +51064,7 @@ exports.validateSchema = function (report, schema) {
     return isValid;
 };
 
-},{"./FormatValidators":214,"./JsonValidation":215,"./Report":217,"./Utils":221}],221:[function(require,module,exports){
+},{"./FormatValidators":208,"./JsonValidation":209,"./Report":211,"./Utils":215}],215:[function(require,module,exports){
 "use strict";
 
 exports.isAbsoluteUri = function (uri) {
@@ -51278,7 +51283,7 @@ exports.ucs2decode = function (string) {
 };
 /*jshint +W016*/
 
-},{}],222:[function(require,module,exports){
+},{}],216:[function(require,module,exports){
 (function (process){
 "use strict";
 
@@ -51602,7 +51607,7 @@ module.exports = ZSchema;
 
 }).call(this,require('_process'))
 
-},{"./FormatValidators":214,"./JsonValidation":215,"./Polyfills":216,"./Report":217,"./SchemaCache":218,"./SchemaCompilation":219,"./SchemaValidation":220,"./Utils":221,"./schemas/hyper-schema.json":223,"./schemas/schema.json":224,"_process":17}],223:[function(require,module,exports){
+},{"./FormatValidators":208,"./JsonValidation":209,"./Polyfills":210,"./Report":211,"./SchemaCache":212,"./SchemaCompilation":213,"./SchemaValidation":214,"./Utils":215,"./schemas/hyper-schema.json":217,"./schemas/schema.json":218,"_process":17}],217:[function(require,module,exports){
 module.exports={
     "$schema": "http://json-schema.org/draft-04/hyper-schema#",
     "id": "http://json-schema.org/draft-04/hyper-schema#",
@@ -51762,7 +51767,7 @@ module.exports={
 }
 
 
-},{}],224:[function(require,module,exports){
+},{}],218:[function(require,module,exports){
 module.exports={
     "id": "http://json-schema.org/draft-04/schema#",
     "$schema": "http://json-schema.org/draft-04/schema#",
@@ -51917,8 +51922,6 @@ module.exports={
 
 },{}]},{},[1])(1)
 });
-
-
 // Worker code from here
 /*
  Note: superagent was monkey patched in above code. Please see here:
