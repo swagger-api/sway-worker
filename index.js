@@ -52377,7 +52377,7 @@ module.exports={
 // Worker code from here
 onmessage = function(message) {
 
-  SwaggerApi.create({definition: message.data}).then(function (api) {
+  SwaggerApi.create(message.data).then(function (api) {
 
     if (!api.validate()) {
       // var errors = api.getLastErrors();
