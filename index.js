@@ -224,6 +224,7 @@ module.exports.createJSONSchemaMocker = function (options) {
  */
 module.exports.createJSONValidator = function (options) {
   var validator = new ZSchema({
+    ignoreUnknownFormats: true,
     reportPathAsArray: true
   });
 
@@ -271,7 +272,7 @@ module.exports.validateAgainstSchema = function (validator, schema, value) {
   return response;
 };
 
-},{"./json-schema-draft-04.json":3,"json-schema-faker":61,"lodash":196,"z-schema":216}],3:[function(require,module,exports){
+},{"./json-schema-draft-04.json":3,"json-schema-faker":61,"lodash":196,"z-schema":220}],3:[function(require,module,exports){
 module.exports={
     "id": "http://json-schema.org/draft-04/schema#",
     "$schema": "http://json-schema.org/draft-04/schema#",
@@ -46349,7 +46350,9 @@ var supportedLoaders = {
   http: require('./lib/loaders/http'),
   https: require('./lib/loaders/http')
 };
-var defaultLoader = typeof window === 'undefined' ? supportedLoaders.file : supportedLoaders.http;
+var defaultLoader = typeof window === 'object' || typeof importScripts === 'function' ?
+      supportedLoaders.http :
+      supportedLoaders.file;
 
 // Load promises polyfill if necessary
 if (typeof Promise === 'undefined') {
@@ -46390,6 +46393,7 @@ function getLoader (location) {
  *
  * @param {object} location - The location to the document
  * @param {object} [options] - The options
+ * @param {prepareRequestCallback} [options.prepareRequest] - The callback used to prepare the request
  * @param {resultCallback} done - The result callback
  *
  * @returns {Promise} Always returns a promise even if there is a callback provided
@@ -46439,7 +46443,7 @@ function getLoader (location) {
  *   });
  *
  * @example
- * // Example using options.processContent to load a YAML file
+ * // Example loading a YAML file
  *
  * PathLoader
  *   .load('/Users/not-you/projects/path-loader/.travis.yml')
@@ -46981,6 +46985,20 @@ Response.prototype.setHeaderProperties = function(header){
 };
 
 /**
+ * Force given parser
+ *
+ * Sets the body parser no matter type.
+ *
+ * @param {Function}
+ * @api public
+ */
+
+Response.prototype.parse = function(fn){
+  this.parser = fn;
+  return this;
+};
+
+/**
  * Parse the given body `str`.
  *
  * Used for auto-parsing of bodies. Parsers
@@ -46992,7 +47010,7 @@ Response.prototype.setHeaderProperties = function(header){
  */
 
 Response.prototype.parseBody = function(str){
-  var parse = request.parse[this.type];
+  var parse = this.parser || request.parse[this.type];
   return parse && str && (str.length || str instanceof Object)
     ? parse(str)
     : null;
@@ -47028,7 +47046,7 @@ Response.prototype.setStatusProperties = function(status){
   var type = status / 100 | 0;
 
   // status / class
-  this.status = status;
+  this.status = this.statusCode = status;
   this.statusType = type;
 
   // basics
@@ -47121,7 +47139,7 @@ function Request(method, url) {
     new_err.response = res;
     new_err.status = res.status;
 
-    self.callback(err || new_err, res);
+    self.callback(new_err, res);
   });
 }
 
@@ -47594,7 +47612,8 @@ Request.prototype.end = function(fn){
   // body
   if ('GET' != this.method && 'HEAD' != this.method && 'string' != typeof data && !isHost(data)) {
     // serialize stuff
-    var serialize = request.serialize[this.getHeader('Content-Type')];
+    var contentType = this.getHeader('Content-Type');
+    var serialize = request.serialize[contentType ? contentType.split(';')[0] : ''];
     if (serialize) data = serialize(data);
   }
 
@@ -47609,6 +47628,20 @@ Request.prototype.end = function(fn){
   xhr.send(data);
   return this;
 };
+
+/**
+ * Faux promise support
+ *
+ * @param {Function} fulfill
+ * @param {Function} reject
+ * @return {Request}
+ */
+
+Request.prototype.then = function (fulfill, reject) {
+  return this.end(function(err, res) {
+    err ? reject(err) : fulfill(res);
+  });
+}
 
 /**
  * Expose `Request`.
@@ -48341,6 +48374,356 @@ module.exports = Array.isArray || function (arr) {
 };
 
 },{}],206:[function(require,module,exports){
+/**
+ * lodash 3.7.0 (Custom Build) <https://lodash.com/>
+ * Build: `lodash modern modularize exports="npm" -o ./`
+ * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <https://lodash.com/license>
+ */
+var baseGet = require('lodash._baseget'),
+    toPath = require('lodash._topath');
+
+/**
+ * Gets the property value of `path` on `object`. If the resolved value is
+ * `undefined` the `defaultValue` is used in its place.
+ *
+ * @static
+ * @memberOf _
+ * @category Object
+ * @param {Object} object The object to query.
+ * @param {Array|string} path The path of the property to get.
+ * @param {*} [defaultValue] The value returned if the resolved value is `undefined`.
+ * @returns {*} Returns the resolved value.
+ * @example
+ *
+ * var object = { 'a': [{ 'b': { 'c': 3 } }] };
+ *
+ * _.get(object, 'a[0].b.c');
+ * // => 3
+ *
+ * _.get(object, ['a', '0', 'b', 'c']);
+ * // => 3
+ *
+ * _.get(object, 'a.b.c', 'default');
+ * // => 'default'
+ */
+function get(object, path, defaultValue) {
+  var result = object == null ? undefined : baseGet(object, toPath(path), path + '');
+  return result === undefined ? defaultValue : result;
+}
+
+module.exports = get;
+
+},{"lodash._baseget":207,"lodash._topath":208}],207:[function(require,module,exports){
+/**
+ * lodash 3.7.2 (Custom Build) <https://lodash.com/>
+ * Build: `lodash modern modularize exports="npm" -o ./`
+ * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <https://lodash.com/license>
+ */
+
+/**
+ * The base implementation of `get` without support for string paths
+ * and default values.
+ *
+ * @private
+ * @param {Object} object The object to query.
+ * @param {Array} path The path of the property to get.
+ * @param {string} [pathKey] The key representation of path.
+ * @returns {*} Returns the resolved value.
+ */
+function baseGet(object, path, pathKey) {
+  if (object == null) {
+    return;
+  }
+  if (pathKey !== undefined && pathKey in toObject(object)) {
+    path = [pathKey];
+  }
+  var index = 0,
+      length = path.length;
+
+  while (object != null && index < length) {
+    object = object[path[index++]];
+  }
+  return (index && index == length) ? object : undefined;
+}
+
+/**
+ * Converts `value` to an object if it's not one.
+ *
+ * @private
+ * @param {*} value The value to process.
+ * @returns {Object} Returns the object.
+ */
+function toObject(value) {
+  return isObject(value) ? value : Object(value);
+}
+
+/**
+ * Checks if `value` is the [language type](https://es5.github.io/#x8) of `Object`.
+ * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
+ *
+ * @static
+ * @memberOf _
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is an object, else `false`.
+ * @example
+ *
+ * _.isObject({});
+ * // => true
+ *
+ * _.isObject([1, 2, 3]);
+ * // => true
+ *
+ * _.isObject(1);
+ * // => false
+ */
+function isObject(value) {
+  // Avoid a V8 JIT bug in Chrome 19-20.
+  // See https://code.google.com/p/v8/issues/detail?id=2291 for more details.
+  var type = typeof value;
+  return !!value && (type == 'object' || type == 'function');
+}
+
+module.exports = baseGet;
+
+},{}],208:[function(require,module,exports){
+/**
+ * lodash 3.8.1 (Custom Build) <https://lodash.com/>
+ * Build: `lodash modern modularize exports="npm" -o ./`
+ * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <https://lodash.com/license>
+ */
+var isArray = require('lodash.isarray');
+
+/** Used to match property names within property paths. */
+var rePropName = /[^.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\n\\]|\\.)*?)\2)\]/g;
+
+/** Used to match backslashes in property paths. */
+var reEscapeChar = /\\(\\)?/g;
+
+/**
+ * Converts `value` to a string if it's not one. An empty string is returned
+ * for `null` or `undefined` values.
+ *
+ * @private
+ * @param {*} value The value to process.
+ * @returns {string} Returns the string.
+ */
+function baseToString(value) {
+  return value == null ? '' : (value + '');
+}
+
+/**
+ * Converts `value` to property path array if it's not one.
+ *
+ * @private
+ * @param {*} value The value to process.
+ * @returns {Array} Returns the property path array.
+ */
+function toPath(value) {
+  if (isArray(value)) {
+    return value;
+  }
+  var result = [];
+  baseToString(value).replace(rePropName, function(match, number, quote, string) {
+    result.push(quote ? string.replace(reEscapeChar, '$1') : (number || match));
+  });
+  return result;
+}
+
+module.exports = toPath;
+
+},{"lodash.isarray":209}],209:[function(require,module,exports){
+/**
+ * lodash 3.0.4 (Custom Build) <https://lodash.com/>
+ * Build: `lodash modern modularize exports="npm" -o ./`
+ * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <https://lodash.com/license>
+ */
+
+/** `Object#toString` result references. */
+var arrayTag = '[object Array]',
+    funcTag = '[object Function]';
+
+/** Used to detect host constructors (Safari > 5). */
+var reIsHostCtor = /^\[object .+?Constructor\]$/;
+
+/**
+ * Checks if `value` is object-like.
+ *
+ * @private
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
+ */
+function isObjectLike(value) {
+  return !!value && typeof value == 'object';
+}
+
+/** Used for native method references. */
+var objectProto = Object.prototype;
+
+/** Used to resolve the decompiled source of functions. */
+var fnToString = Function.prototype.toString;
+
+/** Used to check objects for own properties. */
+var hasOwnProperty = objectProto.hasOwnProperty;
+
+/**
+ * Used to resolve the [`toStringTag`](http://ecma-international.org/ecma-262/6.0/#sec-object.prototype.tostring)
+ * of values.
+ */
+var objToString = objectProto.toString;
+
+/** Used to detect if a method is native. */
+var reIsNative = RegExp('^' +
+  fnToString.call(hasOwnProperty).replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
+  .replace(/hasOwnProperty|(function).*?(?=\\\()| for .+?(?=\\\])/g, '$1.*?') + '$'
+);
+
+/* Native method references for those with the same name as other `lodash` methods. */
+var nativeIsArray = getNative(Array, 'isArray');
+
+/**
+ * Used as the [maximum length](http://ecma-international.org/ecma-262/6.0/#sec-number.max_safe_integer)
+ * of an array-like value.
+ */
+var MAX_SAFE_INTEGER = 9007199254740991;
+
+/**
+ * Gets the native function at `key` of `object`.
+ *
+ * @private
+ * @param {Object} object The object to query.
+ * @param {string} key The key of the method to get.
+ * @returns {*} Returns the function if it's native, else `undefined`.
+ */
+function getNative(object, key) {
+  var value = object == null ? undefined : object[key];
+  return isNative(value) ? value : undefined;
+}
+
+/**
+ * Checks if `value` is a valid array-like length.
+ *
+ * **Note:** This function is based on [`ToLength`](http://ecma-international.org/ecma-262/6.0/#sec-tolength).
+ *
+ * @private
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is a valid length, else `false`.
+ */
+function isLength(value) {
+  return typeof value == 'number' && value > -1 && value % 1 == 0 && value <= MAX_SAFE_INTEGER;
+}
+
+/**
+ * Checks if `value` is classified as an `Array` object.
+ *
+ * @static
+ * @memberOf _
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is correctly classified, else `false`.
+ * @example
+ *
+ * _.isArray([1, 2, 3]);
+ * // => true
+ *
+ * _.isArray(function() { return arguments; }());
+ * // => false
+ */
+var isArray = nativeIsArray || function(value) {
+  return isObjectLike(value) && isLength(value.length) && objToString.call(value) == arrayTag;
+};
+
+/**
+ * Checks if `value` is classified as a `Function` object.
+ *
+ * @static
+ * @memberOf _
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is correctly classified, else `false`.
+ * @example
+ *
+ * _.isFunction(_);
+ * // => true
+ *
+ * _.isFunction(/abc/);
+ * // => false
+ */
+function isFunction(value) {
+  // The use of `Object#toString` avoids issues with the `typeof` operator
+  // in older versions of Chrome and Safari which return 'function' for regexes
+  // and Safari 8 equivalents which return 'object' for typed array constructors.
+  return isObject(value) && objToString.call(value) == funcTag;
+}
+
+/**
+ * Checks if `value` is the [language type](https://es5.github.io/#x8) of `Object`.
+ * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
+ *
+ * @static
+ * @memberOf _
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is an object, else `false`.
+ * @example
+ *
+ * _.isObject({});
+ * // => true
+ *
+ * _.isObject([1, 2, 3]);
+ * // => true
+ *
+ * _.isObject(1);
+ * // => false
+ */
+function isObject(value) {
+  // Avoid a V8 JIT bug in Chrome 19-20.
+  // See https://code.google.com/p/v8/issues/detail?id=2291 for more details.
+  var type = typeof value;
+  return !!value && (type == 'object' || type == 'function');
+}
+
+/**
+ * Checks if `value` is a native function.
+ *
+ * @static
+ * @memberOf _
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is a native function, else `false`.
+ * @example
+ *
+ * _.isNative(Array.prototype.push);
+ * // => true
+ *
+ * _.isNative(_);
+ * // => false
+ */
+function isNative(value) {
+  if (value == null) {
+    return false;
+  }
+  if (isFunction(value)) {
+    return reIsNative.test(fnToString.call(value));
+  }
+  return isObjectLike(value) && reIsHostCtor.test(value);
+}
+
+module.exports = isArray;
+
+},{}],210:[function(require,module,exports){
 /*!
  * Copyright (c) 2015 Chris O'Hara <cohara87@gmail.com>
  *
@@ -48376,13 +48759,15 @@ module.exports = Array.isArray || function (arr) {
 
     'use strict';
 
-    validator = { version: '3.43.0' };
+    validator = { version: '4.0.6' };
 
-    var emailUser = /^((([a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~])+(\.([a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~])+)*)|((\x22)((((\x20|\x09)*(\x0d\x0a))?(\x20|\x09)+)?(([\x01-\x08\x0b\x0c\x0e-\x1f\x7f]|\x21|[\x23-\x5b]|[\x5d-\x7e])|(\\[\x01-\x09\x0b\x0c\x0d-\x7f])))*(((\x20|\x09)*(\x0d\x0a))?(\x20|\x09)+)?(\x22)))$/i;
+    var emailUserPart = /^[a-z\d!#\$%&'\*\+\-\/=\?\^_`{\|}~]+$/i;
+    var quotedEmailUser = /^([\s\x01-\x08\x0b\x0c\x0e-\x1f\x7f\x21\x23-\x5b\x5d-\x7e]|(\\[\x01-\x09\x0b\x0c\x0d-\x7f]))*$/i;
 
-    var emailUserUtf8 = /^((([a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+(\.([a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+)*)|((\x22)((((\x20|\x09)*(\x0d\x0a))?(\x20|\x09)+)?(([\x01-\x08\x0b\x0c\x0e-\x1f\x7f]|\x21|[\x23-\x5b]|[\x5d-\x7e]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(\\([\x01-\x09\x0b\x0c\x0d-\x7f]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]))))*(((\x20|\x09)*(\x0d\x0a))?(\x20|\x09)+)?(\x22)))$/i;
+    var emailUserUtf8Part = /^[a-z\d!#\$%&'\*\+\-\/=\?\^_`{\|}~\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]+$/i;
+    var quotedEmailUserUtf8 = /^([\s\x01-\x08\x0b\x0c\x0e-\x1f\x7f\x21\x23-\x5b\x5d-\x7e\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]|(\\[\x01-\x09\x0b\x0c\x0d-\x7f\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]))*$/i;
 
-    var displayName = /^(?:[a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~\.]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+(?:[a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~\.]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]|\s)*<(.+)>$/i;
+    var displayName = /^[a-z\d!#\$%&'\*\+\-\/=\?\^_`{\|}~\.\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]+[a-z\d!#\$%&'\*\+\-\/=\?\^_`{\|}~\.\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF\s]*<(.+)>$/i;
 
     var creditCard = /^(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|6(?:011|5[0-9][0-9])[0-9]{12}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|(?:2131|1800|35\d{3})\d{11})$/;
 
@@ -48407,7 +48792,7 @@ module.exports = Array.isArray || function (arr) {
       , int = /^(?:[-+]?(?:0|[1-9][0-9]*))$/
       , float = /^(?:[-+]?(?:[0-9]+))?(?:\.[0-9]*)?(?:[eE][\+\-]?(?:[0-9]+))?$/
       , hexadecimal = /^[0-9A-F]+$/i
-      , decimal = /^[-+]?[0-9]*(\.[0-9]+)?$/
+      , decimal = /^[-+]?([0-9]+|\.[0-9]+|[0-9]+\.[0-9]+)$/
       , hexcolor = /^#?([0-9A-F]{3}|[0-9A-F]{6})$/i;
 
     var ascii = /^[\x00-\x7F]+$/
@@ -48421,6 +48806,7 @@ module.exports = Array.isArray || function (arr) {
 
     var phones = {
       'zh-CN': /^(\+?0?86\-?)?1[345789]\d{9}$/,
+      'zh-TW': /^(\+?886\-?|0)?9\d{8}$/,
       'en-ZA': /^(\+?27|0)\d{9}$/,
       'en-AU': /^(\+?61|0)4\d{8}$/,
       'en-HK': /^(\+?852\-?)?[569]\d{3}\-?\d{4}$/,
@@ -48432,6 +48818,9 @@ module.exports = Array.isArray || function (arr) {
       'en-ZM': /^(\+26)?09[567]\d{7}$/,
       'ru-RU': /^(\+?7|8)?9\d{9}$/
     };
+
+    // from http://goo.gl/0ejHHW
+    var iso8601 = /^([\+-]?\d{4}(?!\d{2}\b))((-?)((0[1-9]|1[0-2])(\3([12]\d|0[1-9]|3[01]))?|W([0-4]\d|5[0-2])(-?[1-7])?|(00[1-9]|0[1-9]\d|[12]\d{2}|3([0-5]\d|6[1-6])))([T\s]((([01]\d|2[0-3])((:?)[0-5]\d)?|24\:?00)([\.,]\d+(?!:))?)?(\17[0-5]\d([\.,]\d+)?)?([zZ]|([\+-])([01]\d|2[0-3]):?([0-5]\d)?)?)?)?$/;
 
     validator.extend = function (name, fn) {
         validator[name] = function () {
@@ -48516,8 +48905,6 @@ module.exports = Array.isArray || function (arr) {
             if (display_email) {
                 str = display_email[1];
             }
-        } else if (/\s/.test(str)) {
-            return false;
         }
 
         var parts = str.split('@')
@@ -48529,13 +48916,33 @@ module.exports = Array.isArray || function (arr) {
             user = user.replace(/\./g, '').toLowerCase();
         }
 
+        if (!validator.isByteLength(user, 0, 64) ||
+                !validator.isByteLength(domain, 0, 256)) {
+            return false;
+        }
+
         if (!validator.isFQDN(domain, {require_tld: options.require_tld})) {
             return false;
         }
 
-        return options.allow_utf8_local_part ?
-            emailUserUtf8.test(user) :
-            emailUser.test(user);
+        if (user[0] === '"') {
+            user = user.slice(1, user.length - 1);
+            return options.allow_utf8_local_part ?
+                quotedEmailUserUtf8.test(user) :
+                quotedEmailUser.test(user);
+        }
+
+        var pattern = options.allow_utf8_local_part ?
+            emailUserUtf8Part : emailUserPart;
+
+        var user_parts = user.split('.');
+        for (var i = 0; i < user_parts.length; i++) {
+            if (!pattern.test(user_parts[i])) {
+                return false;
+            }
+        }
+
+        return true;
     };
 
     var default_url_options = {
@@ -48704,6 +49111,10 @@ module.exports = Array.isArray || function (arr) {
             if (!/^[a-z\u00a1-\uffff0-9-]+$/i.test(part)) {
                 return false;
             }
+            if (/[\uff01-\uff5e]/.test(part)) {
+                // disallow full-width chars
+                return false;
+            }
             if (part[0] === '-' || part[part.length - 1] === '-' ||
                     part.indexOf('---') >= 0) {
                 return false;
@@ -48729,7 +49140,7 @@ module.exports = Array.isArray || function (arr) {
     };
 
     validator.isDecimal = function (str) {
-        return decimal.test(str);
+        return str !== '' && decimal.test(str);
     };
 
     validator.isHexadecimal = function (str) {
@@ -48773,7 +49184,8 @@ module.exports = Array.isArray || function (arr) {
     };
 
     validator.isByteLength = function (str, min, max) {
-        return str.length >= min && (typeof max === 'undefined' || str.length <= max);
+        var len = encodeURI(str).split(/%..|./).length - 1;
+        return len >= min && (typeof max === 'undefined' || len <= max);
     };
 
     validator.isUUID = function (str, version) {
@@ -48794,7 +49206,7 @@ module.exports = Array.isArray || function (arr) {
     validator.isBefore = function (str, date) {
         var comparison = validator.toDate(date || new Date())
           , original = validator.toDate(str);
-        return original && comparison && original < comparison;
+        return !!(original && comparison && original < comparison);
     };
 
     validator.isIn = function (str, options) {
@@ -48971,6 +49383,10 @@ module.exports = Array.isArray || function (arr) {
         return validator.isHexadecimal(str) && str.length === 24;
     };
 
+    validator.isISO8601 = function (str) {
+        return iso8601.test(str);
+    };
+
     validator.ltrim = function (str, chars) {
         var pattern = chars ? new RegExp('^[' + chars + ']+', 'g') : /^\s+/g;
         return str.replace(pattern, '');
@@ -49099,7 +49515,7 @@ module.exports = Array.isArray || function (arr) {
 
 });
 
-},{}],207:[function(require,module,exports){
+},{}],211:[function(require,module,exports){
 "use strict";
 
 module.exports = {
@@ -49160,7 +49576,7 @@ module.exports = {
 
 };
 
-},{}],208:[function(require,module,exports){
+},{}],212:[function(require,module,exports){
 /*jshint maxlen: false*/
 
 var validator = require("validator");
@@ -49291,7 +49707,7 @@ var FormatValidators = {
 
 module.exports = FormatValidators;
 
-},{"validator":206}],209:[function(require,module,exports){
+},{"validator":210}],213:[function(require,module,exports){
 "use strict";
 
 var FormatValidators  = require("./FormatValidators"),
@@ -49618,7 +50034,7 @@ var JsonValidators = {
                     report.addError("INVALID_FORMAT", [schema.format, json], null, schema.description);
                 }
             }
-        } else {
+        } else if (this.options.ignoreUnknownFormats !== true) {
             report.addError("UNKNOWN_FORMAT", [schema.format], null, schema.description);
         }
     }
@@ -49817,7 +50233,7 @@ exports.validate = function (report, schema, json) {
 
 };
 
-},{"./FormatValidators":208,"./Report":211,"./Utils":215}],210:[function(require,module,exports){
+},{"./FormatValidators":212,"./Report":215,"./Utils":219}],214:[function(require,module,exports){
 // Number.isFinite polyfill
 // http://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.isfinite
 if (typeof Number.isFinite !== "function") {
@@ -49835,7 +50251,7 @@ if (typeof Number.isFinite !== "function") {
     };
 }
 
-},{}],211:[function(require,module,exports){
+},{}],215:[function(require,module,exports){
 (function (process){
 "use strict";
 
@@ -49930,7 +50346,7 @@ Report.prototype.getPath = function () {
                 return "uri(" + segment + ")";
             }
 
-            return segment.replace("~", "~0").replace("/", "~1");
+            return segment.replace(/\~/g, "~0").replace(/\//g, "~1");
         }).join("/");
     }
     return path;
@@ -50012,7 +50428,7 @@ module.exports = Report;
 
 }).call(this,require('_process'))
 
-},{"./Errors":207,"./Utils":215,"_process":17}],212:[function(require,module,exports){
+},{"./Errors":211,"./Utils":219,"_process":17}],216:[function(require,module,exports){
 "use strict";
 
 var Report              = require("./Report");
@@ -50167,7 +50583,7 @@ exports.getSchemaByUri = function (report, uri, root) {
 
 exports.getRemotePath = getRemotePath;
 
-},{"./Report":211,"./SchemaCompilation":213,"./SchemaValidation":214,"./Utils":215}],213:[function(require,module,exports){
+},{"./Report":215,"./SchemaCompilation":217,"./SchemaValidation":218,"./Utils":219}],217:[function(require,module,exports){
 "use strict";
 
 var Report      = require("./Report");
@@ -50455,7 +50871,7 @@ exports.compileSchema = function (report, schema) {
 
 };
 
-},{"./Report":211,"./SchemaCache":212,"./Utils":215}],214:[function(require,module,exports){
+},{"./Report":215,"./SchemaCache":216,"./Utils":219}],218:[function(require,module,exports){
 "use strict";
 
 var FormatValidators = require("./FormatValidators"),
@@ -50930,7 +51346,7 @@ var SchemaValidators = {
         if (typeof schema.format !== "string") {
             report.addError("KEYWORD_TYPE_EXPECTED", ["format", "string"]);
         } else {
-            if (FormatValidators[schema.format] === undefined) {
+            if (FormatValidators[schema.format] === undefined && this.options.ignoreUnknownFormats !== true) {
                 report.addError("UNKNOWN_FORMAT", [schema.format]);
             }
         }
@@ -51064,7 +51480,7 @@ exports.validateSchema = function (report, schema) {
     return isValid;
 };
 
-},{"./FormatValidators":208,"./JsonValidation":209,"./Report":211,"./Utils":215}],215:[function(require,module,exports){
+},{"./FormatValidators":212,"./JsonValidation":213,"./Report":215,"./Utils":219}],219:[function(require,module,exports){
 "use strict";
 
 exports.isAbsoluteUri = function (uri) {
@@ -51283,11 +51699,12 @@ exports.ucs2decode = function (string) {
 };
 /*jshint +W016*/
 
-},{}],216:[function(require,module,exports){
+},{}],220:[function(require,module,exports){
 (function (process){
 "use strict";
 
 require("./Polyfills");
+var get               = require("lodash.get");
 var Report            = require("./Report");
 var FormatValidators  = require("./FormatValidators");
 var JsonValidation    = require("./JsonValidation");
@@ -51339,7 +51756,9 @@ var defaultOptions = {
     // stops validation as soon as an error is found, true by default but can be turned off
     breakOnFirstError: true,
     // check if schema follow best practices and common sence
-    pedanticCheck: false
+    pedanticCheck: false,
+    // ignore unknown formats (do not report them as an error)
+    ignoreUnknownFormats: false
 };
 
 /*
@@ -51422,7 +51841,14 @@ ZSchema.prototype.validateSchema = function (schema) {
     this.lastReport = report;
     return report.isValid();
 };
-ZSchema.prototype.validate = function (json, schema, callback) {
+ZSchema.prototype.validate = function (json, schema, options, callback) {
+
+    if (Utils.whatIs(options) === "function") {
+        callback = options;
+        options = {};
+    }
+    if (!options) { options = {}; }
+
     var whatIs = Utils.whatIs(schema);
     if (whatIs !== "string" && whatIs !== "object") {
         var e = new Error("Invalid .validate call - schema must be an string or object but " + whatIs + " was passed!");
@@ -51438,7 +51864,15 @@ ZSchema.prototype.validate = function (json, schema, callback) {
     var foundError = false;
     var report = new Report(this.options);
 
-    schema = SchemaCache.getSchema.call(this, report, schema);
+    if (typeof schema === "string") {
+        var schemaName = schema;
+        schema = SchemaCache.getSchema.call(this, report, schemaName);
+        if (!schema) {
+            throw new Error("Schema with id '" + schemaName + "' wasn't found in the validator cache!");
+        }
+    } else {
+        schema = SchemaCache.getSchema.call(this, report, schema);
+    }
 
     var compiled = false;
     if (!foundError) {
@@ -51456,6 +51890,14 @@ ZSchema.prototype.validate = function (json, schema, callback) {
     if (!validated) {
         this.lastReport = report;
         foundError = true;
+    }
+
+    if (options.schemaPath) {
+        report.rootSchema = schema;
+        schema = get(schema, options.schemaPath);
+        if (!schema) {
+            throw new Error("Schema path '" + options.schemaPath + "' wasn't found in the schema!");
+        }
     }
 
     if (!foundError) {
@@ -51519,6 +51961,8 @@ ZSchema.prototype.getMissingRemoteReferences = function () {
 ZSchema.prototype.setRemoteReference = function (uri, schema) {
     if (typeof schema === "string") {
         schema = JSON.parse(schema);
+    } else {
+        schema = Utils.cloneDeep(schema);
     }
     SchemaCache.cacheSchemaByUri.call(this, uri, schema);
 };
@@ -51596,6 +52040,9 @@ ZSchema.setSchemaReader = function (schemaReader) {
 ZSchema.registerFormat = function (formatName, validatorFunction) {
     FormatValidators[formatName] = validatorFunction;
 };
+ZSchema.unregisterFormat = function (formatName) {
+    delete FormatValidators[formatName];
+};
 ZSchema.getRegisteredFormats = function () {
     return Object.keys(FormatValidators);
 };
@@ -51607,7 +52054,7 @@ module.exports = ZSchema;
 
 }).call(this,require('_process'))
 
-},{"./FormatValidators":208,"./JsonValidation":209,"./Polyfills":210,"./Report":211,"./SchemaCache":212,"./SchemaCompilation":213,"./SchemaValidation":214,"./Utils":215,"./schemas/hyper-schema.json":217,"./schemas/schema.json":218,"_process":17}],217:[function(require,module,exports){
+},{"./FormatValidators":212,"./JsonValidation":213,"./Polyfills":214,"./Report":215,"./SchemaCache":216,"./SchemaCompilation":217,"./SchemaValidation":218,"./Utils":219,"./schemas/hyper-schema.json":221,"./schemas/schema.json":222,"_process":17,"lodash.get":206}],221:[function(require,module,exports){
 module.exports={
     "$schema": "http://json-schema.org/draft-04/hyper-schema#",
     "id": "http://json-schema.org/draft-04/hyper-schema#",
@@ -51767,7 +52214,7 @@ module.exports={
 }
 
 
-},{}],218:[function(require,module,exports){
+},{}],222:[function(require,module,exports){
 module.exports={
     "id": "http://json-schema.org/draft-04/schema#",
     "$schema": "http://json-schema.org/draft-04/schema#",
@@ -51922,11 +52369,12 @@ module.exports={
 
 },{}]},{},[1])(1)
 });
+
+
+
+
+
 // Worker code from here
-/*
- Note: superagent was monkey patched in above code. Please see here:
- https://github.com/visionmedia/superagent/pull/673
-*/
 onmessage = function(message) {
 
   SwaggerApi.create({definition: message.data}).then(function (api) {
