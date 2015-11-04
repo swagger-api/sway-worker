@@ -52913,20 +52913,22 @@ onmessage = function(message) {
 
   SwaggerApi.create(message.data).then(function (api) {
 
-    if (!api.validate()) {
-      // var errors = api.getLastErrors();
+    var results = api.validate();
+
+    if (results.errors.length) {
 
       postMessage({
         specs: api.resolved || api.definition,
-        errors: sanitizeErrors(api.getLastErrors()),
-        warnings: api.getLastWarnings()
+        errors: sanitizeErrors(results.errors),
+        warnings: results.warnings
       });
+      return;
     }
 
     postMessage({
       errors: [],
       specs: api.resolved,
-      warnings: api.getLastWarnings()
+      warnings: results.warnings
     });
   })
 
@@ -52936,7 +52938,8 @@ onmessage = function(message) {
       warnings: [],
       errors: [{
         message: err.message,
-        code: 'ERROR_THROWN_BY_SWAY_CODE:' + err.code
+        code: err.code ? 'ERROR_THROWN_BY_SWAY_CODE: ' + err.code :
+          'UNCAUGHT_SWAY_WORKER_ERROR'
       }]
     });
   });
