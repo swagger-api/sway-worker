@@ -1,6 +1,6 @@
 {
   "name": "sway-worker",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "sway in a worker",
   "main": "index.js",
   "scripts": {
