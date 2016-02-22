@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mohsen1/sway-worker.git"
+    "url": "git+https://github.com/swagger-api/sway-worker.git"
   },
   "keywords": [
     "swagger",
@@ -17,7 +17,7 @@
   "author": "Mohsen Azimi <me@azimi.me>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/mohsen1/sway-worker/issues"
+    "url": "https://github.com/swagger-api/sway-worker/issues"
   },
-  "homepage": "https://github.com/mohsen1/sway-worker#readme"
+  "homepage": "https://github.com/swagger-api/sway-worker#readme"
 }
