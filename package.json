@@ -4,7 +4,8 @@
   "description": "sway in a worker",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "webpack --config webpack.config.js"
   },
   "repository": {
     "type": "git",
@@ -19,5 +20,10 @@
   "bugs": {
     "url": "https://github.com/mohsen1/sway-worker/issues"
   },
-  "homepage": "https://github.com/mohsen1/sway-worker#readme"
+  "homepage": "https://github.com/mohsen1/sway-worker#readme",
+  "devDependencies": {
+    "json-loader": "0.5.4",
+    "sway": "0.6.0",
+    "webpack": "2.1.0-beta.2"
+  }
 }
